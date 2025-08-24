@@ -65,6 +65,7 @@ class MainWindow(QMainWindow):
         # This dictionary will hold our editor widgets for later access
         self.editors = {}
         self.detached_window = None
+        self.process_start_time = None
 
         # Main layout and the container widget
         main_layout = QVBoxLayout()
@@ -172,17 +173,17 @@ class MainWindow(QMainWindow):
         if not self.config_file.exists():
             msg = f"Error: Configuration file not found at '{self.config_file}'"
             self.statusBar().showMessage(msg, 5000)
-            self.output_area.append(f'\n<font color="red">{msg}</font>')
+            self._log_message(f"\n{msg}", color="red")
             return
 
         self.config = configparser.ConfigParser()
         try:
             self.config.read(self.config_file, encoding='utf-8')
-            self.output_area.append(f"Successfully loaded config: {self.config_file.name}")
+            self._log_message(f"Successfully loaded config: {self.config_file.name}", color="green")
         except configparser.Error as e:
             msg = f"Error parsing INI file: {e}"
             self.statusBar().showMessage(msg, 5000)
-            self.output_area.append(f'\n<font color="red">{msg}</font>')
+            self._log_message(f"\n{msg}", color="red")
             return
 
         sections_to_display = ['Command', 'Arguments']
@@ -204,7 +205,7 @@ class MainWindow(QMainWindow):
         if not self.config.has_section('Command'):
             msg = "Error: INI file is missing the required [Command] section."
             self.statusBar().showMessage(msg, 5000)
-            self.output_area.append(f'<font color="red">{msg}</font>')
+            self._log_message(msg, color="red")
 
     def toggle_detach_output(self):
         """Detaches or attaches the output window."""
@@ -243,13 +244,23 @@ class MainWindow(QMainWindow):
         """Clears the output and prints the initial session info."""
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         py_version = sys.version.split('\n')[0]
-        initial_info = (
-            f"--- Session started at: {now} ---\n"
-            f"Python Version: {py_version}\n"
-            f"Executable: {sys.executable}\n"
-            f"----------------------------------"
-        )
-        self.output_area.setText(initial_info)
+
+        self.output_area.clear()
+        self._log_message(f"--- Session started at: {now} ---", bold=True)
+        self._log_message(f"Python Version: {py_version}", color="blue")
+        self._log_message(f"Executable: {sys.executable}", color="#666666")
+        self._log_message("----------------------------------", bold=True)
+
+    def _log_message(self, text: str, color: str = None, bold: bool = False):
+        """Appends a message to the output area with optional styling."""
+        if bold:
+            text = f"<b>{text}</b>"
+        if color:
+            # Using a span with inline CSS is more modern than <font>
+            # but <font> is simple and works perfectly here.
+            text = f'<font color="{color}">{text}</font>'
+
+        self.output_area.append(text)
 
     def save_output(self):
         """Saves the content of the output area to a text file."""
@@ -271,7 +282,7 @@ class MainWindow(QMainWindow):
             except Exception as e:
                 error_msg = f"Error saving file: {e}"
                 self.statusBar().showMessage(error_msg, 5000)
-                self.output_area.append(f'<font color="red">{error_msg}</font>')
+                self._log_message(error_msg, color="red")
 
     def _parse_label(self, label_text: str) -> tuple[str, str | None]:
         """Parses a label string to extract a clean label and an optional type hint."""
@@ -356,7 +367,7 @@ class MainWindow(QMainWindow):
 
         # Add a timestamped separator for this run
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self.output_area.append(f"\n--- Run at: {now} ---")
+        self._log_message(f"\n--- Run at: {now} ---", bold=True)
 
         # Get the current values from the editor widgets
         ui_values = {}
@@ -371,12 +382,12 @@ class MainWindow(QMainWindow):
         # Find the script filename from the UI values
         script_filename = ui_values.get(('Command', 'script_file_name'))
         if not script_filename:
-            self.output_area.setHtml('<font color="red">Error: \'script_file_name\' not found in the UI.</font>')
+            self._log_message("Error: 'script_file_name' not found in the UI.", color="red")
             return
 
         script_path = self.script_dir / script_filename
         if not script_path.exists():
-            self.output_area.setHtml(f'<font color="red">Error: Script not found at \'{script_path}\'.</font>')
+            self._log_message(f"Error: Script not found at '{script_path}'.", color="red")
             return
 
         # Collect arguments, sorted by key (arg1, arg2, etc.)
@@ -387,9 +398,16 @@ class MainWindow(QMainWindow):
             if key.startswith('arg'):
                 args.append(ui_values[('Arguments', key)])
 
+        # Display the command being run
+        # Quote arguments with spaces for clarity
+        quoted_args = [f'"{arg}"' if ' ' in arg else arg for arg in args]
+        command_str = f"python \"{script_path}\" {' '.join(quoted_args)}"
+        self._log_message(f"$ {command_str}\n", color="#666666") # Use a dark gray for the command
+
         self.statusBar().showMessage(f"Running '{script_filename}'...")
         self._set_ui_for_running_state(True)
 
+        self.process_start_time = datetime.now()
         self.process.start("python", [str(script_path)] + args)
 
     def handle_stdout(self):
@@ -397,17 +415,27 @@ class MainWindow(QMainWindow):
         data = self.process.readAllStandardOutput()
         text = str(data, 'utf-8').strip()
         for line in text.splitlines():
-            self.output_area.append(f"> {line}")
+            self._log_message(f"> {line}")
 
     def handle_stderr(self):
         """Append standard error to the text area."""
         data = self.process.readAllStandardError()
         error_text = str(data, 'utf-8').strip()
         for line in error_text.splitlines():
-            self.output_area.append(f'<font color="red">! ERROR: {line}</font>')
+            self._log_message(f"! ERROR: {line}", color="red")
 
     def process_finished(self):
         """Called when the QProcess finishes."""
+        if self.process_start_time:
+            end_time = datetime.now()
+            elapsed = end_time - self.process_start_time
+            elapsed_str = f"{elapsed.total_seconds():.2f}s"
+            self._log_message(
+                f"\n\n--- Finished at: {end_time.strftime('%Y-%m-%d %H:%M:%S')} (Elapsed: {elapsed_str}) ---",
+                bold=True
+            )
+            self.process_start_time = None
+
         exit_code = self.process.exitCode()
         exit_status = self.process.exitStatus()
         if exit_status == QProcess.ExitStatus.CrashExit:
