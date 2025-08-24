@@ -17,7 +17,17 @@ This directory contains a graphical user interface (GUI) for editing INI files.
 - [ ] Recognize list of numbers
 - [ ] Reconize list of Files
 - [ ] Add buttons to Add/Remove/Edit keys, which will then be added to the `*.ini` file.
+
+## TO-DO List
+- [ ] Installation using `pip`
 - [ ] Test with multicore scripts
+
+## Solve dependencies with `conda`
+
+    conda create --name gui_env python=3.12
+    conda activate gui_env
+    conda install -c conda-forge pyside numpy matplotlib
+
 
 ## Screenshot of the GUI (for version 0.3)
 
