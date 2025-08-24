@@ -52,9 +52,26 @@ class MainWindow(QMainWindow):
 
         # --- Menu Bar ---
         file_menu = self.menuBar().addMenu("&File")
-        open_action = QAction("&Open INI File...", self)
-        open_action.triggered.connect(self._prompt_open_file)
-        file_menu.addAction(open_action)
+        self.open_action = QAction("&Open INI File...", self)
+        self.open_action.triggered.connect(self._prompt_open_file)
+        self.save_action = QAction("&Save Changes", self)
+        self.save_action.triggered.connect(self.save_config)
+        self.save_output_action = QAction("Save &Output As...", self)
+        self.save_output_action.triggered.connect(self.save_output)
+        file_menu.addAction(self.open_action)
+        file_menu.addAction(self.save_action)
+        file_menu.addAction(self.save_output_action)
+
+        edit_menu = self.menuBar().addMenu("&Edit")
+        self.clear_output_action = QAction("&Clear Output", self)
+        self.clear_output_action.triggered.connect(self.clear_output)
+        edit_menu.addAction(self.clear_output_action)
+
+        view_menu = self.menuBar().addMenu("&View")
+        self.detach_action = QAction("&Detach Output", self)
+        self.detach_action.setCheckable(True)
+        self.detach_action.triggered.connect(self.toggle_detach_output)
+        view_menu.addAction(self.detach_action)
 
         # Dynamically determine the config file path based on the script's name
         script_path = pathlib.Path(__file__).resolve()
@@ -82,25 +99,13 @@ class MainWindow(QMainWindow):
 
         # --- Button Layout ---
         button_layout = QHBoxLayout()
-        self.save_button = QPushButton("Save Changes")
-        self.save_button.clicked.connect(self.save_config)
         self.run_button = QPushButton("Run")
         self.run_button.clicked.connect(self.run_script)
         self.stop_button = QPushButton("Stop")
         self.stop_button.clicked.connect(self.stop_script)
         self.stop_button.setEnabled(False)
-        self.clear_button = QPushButton("Clear Output")
-        self.clear_button.clicked.connect(self.clear_output)
-        self.save_output_button = QPushButton("Save Output")
-        self.save_output_button.clicked.connect(self.save_output)
-        self.detach_button = QPushButton("Detach Output")
-        self.detach_button.clicked.connect(self.toggle_detach_output)
-        button_layout.addWidget(self.save_button)
         button_layout.addWidget(self.run_button)
         button_layout.addWidget(self.stop_button)
-        button_layout.addWidget(self.clear_button)
-        button_layout.addWidget(self.save_output_button)
-        button_layout.addWidget(self.detach_button)
         main_layout.addLayout(button_layout)
 
         # --- Output Area ---
@@ -128,9 +133,10 @@ class MainWindow(QMainWindow):
     def _set_ui_for_running_state(self, is_running: bool):
         """Enables/disables UI elements based on process state."""
         self.run_button.setEnabled(not is_running)
-        self.save_button.setEnabled(not is_running)
         self.stop_button.setEnabled(is_running)
-        self.detach_button.setEnabled(not is_running)
+        self.open_action.setEnabled(not is_running)
+        self.save_action.setEnabled(not is_running)
+        self.detach_action.setEnabled(not is_running)
 
     def stop_script(self):
         """Terminates the running QProcess."""
@@ -219,7 +225,7 @@ class MainWindow(QMainWindow):
 
             self.output_container.hide()
             self.detached_window.show()
-            self.detach_button.setText("Attach Output")
+            self.detach_action.setChecked(True)
         else:  # It's detached, so we attach
             # Closing the window will trigger the attach_output via the signal
             self.detached_window.close()
@@ -232,7 +238,7 @@ class MainWindow(QMainWindow):
         self.output_area.setParent(self.output_container)
         self.output_container_layout.addWidget(self.output_area)
         self.output_container.show()
-        self.detach_button.setText("Detach Output")
+        self.detach_action.setChecked(False)
         self.detached_window = None
 
     def clear_output(self):
