@@ -32,6 +32,7 @@ class OutputWindow(QWidget):
         self.setWindowTitle("Detached Output")
         self.setLayout(QVBoxLayout())
         self.resize(600, 400)
+        self.setMinimumSize(400, 200)
 
     def closeEvent(self, event):
         # Emit the signal and then accept the event to allow the window to close
@@ -49,6 +50,7 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         self.setWindowTitle("INI Script Runner v0.3")
+        self.setMinimumSize(600, 500)
 
         # --- Menu Bar ---
         file_menu = self.menuBar().addMenu("&File")
@@ -83,16 +85,17 @@ class MainWindow(QMainWindow):
         self.editors = {}
         self.detached_window = None
         self.process_start_time = None
+        self.main_window_size_before_detach = None
 
         # Main layout and the container widget
-        main_layout = QVBoxLayout()
+        self.main_layout = QVBoxLayout()
         central_widget = QWidget()
-        central_widget.setLayout(main_layout)
+        central_widget.setLayout(self.main_layout)
         self.setCentralWidget(central_widget)
 
         # Use a QFormLayout for a nice key-value display
         self.form_layout = QFormLayout()
-        main_layout.addLayout(self.form_layout)
+        self.main_layout.addLayout(self.form_layout)
 
         # Add a status bar for feedback *before* we might use it
         self.setStatusBar(QStatusBar(self))
@@ -106,7 +109,7 @@ class MainWindow(QMainWindow):
         self.stop_button.setEnabled(False)
         button_layout.addWidget(self.run_button)
         button_layout.addWidget(self.stop_button)
-        main_layout.addLayout(button_layout)
+        self.main_layout.addLayout(button_layout)
 
         # --- Output Area ---
         # Create the output widget itself
@@ -119,7 +122,7 @@ class MainWindow(QMainWindow):
         self.output_container_layout.setContentsMargins(0, 0, 0, 0)
         self.output_container_layout.addWidget(QLabel("Output:"))
         self.output_container_layout.addWidget(self.output_area)
-        main_layout.addWidget(self.output_container)
+        self.main_layout.addWidget(self.output_container)
 
         # --- QProcess Setup ---
         self.process = QProcess()
@@ -216,6 +219,7 @@ class MainWindow(QMainWindow):
     def toggle_detach_output(self):
         """Detaches or attaches the output window."""
         if self.detached_window is None:  # It's attached, so we detach
+            self.main_window_size_before_detach = self.size()
             self.detached_window = OutputWindow()
             self.detached_window.window_closed.connect(self.attach_output)
 
@@ -223,7 +227,17 @@ class MainWindow(QMainWindow):
             self.output_area.setParent(self.detached_window)
             self.detached_window.layout().addWidget(self.output_area)
 
+            # Explicitly remove the container from the layout and reparent it
             self.output_container.hide()
+            # Force the layout to recalculate its size hint
+            self.main_layout.activate()
+
+            # Temporarily remove the minimum height constraint to allow shrinking, then restore it.
+            original_min_size = self.minimumSize()
+            self.setMinimumSize(0, 0)
+            self.adjustSize()
+            self.setMinimumSize(original_min_size)
+
             self.detached_window.show()
             self.detach_action.setChecked(True)
         else:  # It's detached, so we attach
@@ -235,9 +249,15 @@ class MainWindow(QMainWindow):
         if self.detached_window is None:
             return  # Nothing to do
 
+        # Move the output area back to its container in the main window
         self.output_area.setParent(self.output_container)
         self.output_container_layout.addWidget(self.output_area)
         self.output_container.show()
+
+        if self.main_window_size_before_detach:
+            self.resize(self.main_window_size_before_detach)
+            self.main_window_size_before_detach = None
+
         self.detach_action.setChecked(False)
         self.detached_window = None
 
@@ -408,7 +428,7 @@ class MainWindow(QMainWindow):
         # Quote arguments with spaces for clarity
         quoted_args = [f'"{arg}"' if ' ' in arg else arg for arg in args]
         command_str = f"python \"{script_path}\" {' '.join(quoted_args)}"
-        self._log_message(f"$ {command_str}\n", color="#666666") # Use a dark gray for the command
+        self._log_message(f"$ {command_str}\n", color="#666666")  # Use a dark gray for the command
 
         self.statusBar().showMessage(f"Running '{script_filename}'...")
         self._set_ui_for_running_state(True)
