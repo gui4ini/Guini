@@ -17,6 +17,7 @@ This directory contains a graphical user interface (GUI) for editing INI files.
 - [ ] Recognize list of numbers
 - [ ] Reconize list of Files
 - [ ] Add buttons to Add/Remove/Edit keys, which will then be added to the `*.ini` file.
+- [ ] Test with multicore scripts
 
 ## Screenshot of the GUI (for version 0.3)
 
