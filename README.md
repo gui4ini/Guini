@@ -4,6 +4,26 @@
     <img src="docs/imgs/Guini - Logo.png" height="400">
 </p>
 
+# TOC
+
+- [Guini: GUI for INI files](#guini-gui-for-ini-files)
+- [TOC](#toc)
+  - [Introduction](#introduction)
+  - [Description](#description)
+  - [Usage](#usage)
+  - [`*.ini` files for Guini](#ini-files-for-guini)
+    - [Adding variable types](#adding-variable-types)
+  - [Solving dependencies with `conda`](#solving-dependencies-with-conda)
+  - [More Screenshots of the GUI (for version 0.3)](#more-screenshots-of-the-gui-for-version-03)
+    - [Example 1 `*.ini` file](#example-1-ini-file)
+    - [Example 1 GUI](#example-1-gui)
+    - [Example 2 `*.ini` file - Use with `matplotlib`](#example-2-ini-file---use-with-matplotlib)
+    - [Example 2 GUI - Use with `matplotlib`](#example-2-gui---use-with-matplotlib)
+  - [Future developments](#future-developments)
+    - [TO-DO List](#to-do-list)
+    - [List of Current Features](#list-of-current-features)
+    - [List of Features to add](#list-of-features-to-add)
+  - [FAQ](#faq)
 
 ## Description
 
