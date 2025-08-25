@@ -1,12 +1,13 @@
-# [Guini](https://github.com/gui4ini/Guini): GUI for INI files
+# [Guini](https://github.com/gui4ini/Guini): Graphical User Interface (GUI) for INI files
 
 <p align="center">
     <img src="docs/imgs/Guini - Logo.png" height="400">
 </p>
 
+
 ## Description
 
-This is small project in [PySide](https://doc.qt.io/qtforpython/PySide/) that creates an GUI from an [`*.ini`](https://docs.python.org/3.10/library/configparser.html#supported-ini-file-structure) file, and then run a python script with the values from the file.
+This is small project based on [PySide](https://doc.qt.io/qtforpython/PySide/) that builds a Graphical User Interface (GUI) from an [`*.ini`](https://docs.python.org/3.10/library/configparser.html#supported-ini-file-structure) file, and then run a python script with the values from the file.
 
 It does two main things:
 
@@ -198,6 +199,7 @@ arg7 = coef order 4 (Float)
 ### TO-DO List
 
 * [ ] Test with multicore scripts
+* [ ] Test in a bootstrap mode: add guini inside the  `if __name__ == "__main__":` part, and the the script run it from within. 
 
 ### List of Current Features
 
@@ -207,11 +209,13 @@ arg7 = coef order 4 (Float)
 ### List of Features to add
 
 * [ ] Installation using `pip`
+* [ ] Run multiple instances of the python script
 * [ ] Two colunns when the GUI is too tall.
-* [ ] Maybe a dedicated section for itself inside the `*.ini` file with a few option. Suggestions:
+* [ ] (Maybe) a dedicated section for itself inside the `*.ini` file with a few option. Suggestions:
   * 2 columns
   * detached output display
   * font size for display
+* [ ] (Maybe) use `guini.ini` to save parameters of guini only.
 * [ ] Recognize list of numbers
 * [ ] Reconize list of Files
 * [ ] Add buttons to Add/Remove/Edit keys, which will then be added to the `*.ini` file.
