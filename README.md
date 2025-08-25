@@ -1,4 +1,4 @@
-# Guini: GUI for INI files
+# [Guini](https://github.com/gui4ini/Guini): GUI for INI files
 
 <p align="center">
     <img src="docs/imgs/Guini - Logo.png" height="400">
@@ -61,9 +61,16 @@ For Guini, the requirements for the `*.ini` file are:
 
 ### Adding variable types
 
-It is opitional to provide the variable types when providing labels. If you do not provide the types, Guini will try to guess then.
+It is optional to provide the variable types when providing labels. To provide the variable type, add the type *in parenthesis* to the `args` in the `[Label]` section. Example:
 
-The variable types acceptable are
+```ini
+[Labels]
+script_file_name = Script File (filename)
+arg1 = First Argument (Integer)
+arg2 = Second Argument (Float)
+```
+
+If you do not provide the types, Guini will try to guess then. The variable types acceptable are
 
 * `Integers`
 * `Floats`
@@ -71,7 +78,7 @@ The variable types acceptable are
 * `Strings`
 * `filename`: Path to files
 
-For instance, by providing the `filename` type, Guini will provide use the `Open->File` button in the GUI to search for the file
+For instance, by providing the `filename` type, Guini will provide use the `Open->File` button in the GUI to search for the file.
 
 ## Solving dependencies with `conda`
 
