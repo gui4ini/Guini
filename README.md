@@ -8,6 +8,11 @@
 
 This is small project in [PySide](https://doc.qt.io/qtforpython/PySide/) that creates an GUI from an [`*.ini`](https://docs.python.org/3.10/library/configparser.html#supported-ini-file-structure) file, and then run a python script with the values from the file.
 
+It does two main things:
+
+1. Create a GUI from a `*.ini` file with arbiratry number of arguments. It dynamically adjust window size and argument types for better user experience.
+2. Run a *user-defined* python script with the arguments of the GUI. The output of the scripts is shown in the *Output* part of the GUI.
+
 For instance, the `*.ini` file below
 
 ```ini
@@ -47,9 +52,11 @@ which in the example of the `*.ini` file above will be:
 python argument_analyzer.py first_argument 123 another_argument true C:\path\to\your\file.txt
 ```
 
-The outputs of the python script will be shown in the *Output* terminal in the GUI. One can run the script several times.
+The outputs of the python script will be shown in the *Output* terminal in the GUI (see line number 6 in the *Output* terminal of the image above). One can run the script several times.
 
-## Workflow
+## Usage
+
+This is the recomended workflow to use Guini:
 
 1. The very first step is to have a python script that can parse command line arguments, for instance using the [sys.argv](https://docs.python.org/3/library/sys.html?highlight%3Dargv%23sys.argv=#sys.argv) list. The examples in the [script](./scripts/) folder all have that capbility.
 
@@ -61,7 +68,7 @@ The outputs of the python script will be shown in the *Output* terminal in the G
     python guini.py
     ```
 
-4. Guini will first load the file `guini.ini`. T oload your `.ini` there are two options:
+4. Guini will first load the file `guini.ini`. To load your `.ini` there are two options:
    * You can rename the `.ini` file you created as `guini.ini`. This is the recomended option if you will run your script several times.
    * In the GUI, go to `File->Open INI file`, and located your own file.
 
