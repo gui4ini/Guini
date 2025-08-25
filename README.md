@@ -49,7 +49,25 @@ python argument_analyzer.py first_argument 123 another_argument true C:\path\to\
 
 The outputs of the python script will be shown in the *Output* terminal in the GUI. One can run the script several times.
 
-### `*.ini` files
+## Workflow
+
+1. The very first step is to have a python script that can parse command line arguments, for instance using the [sys.argv](https://docs.python.org/3/library/sys.html?highlight%3Dargv%23sys.argv=#sys.argv) list. The examples in the [script](./scripts/) folder all have that capbility.
+
+2. Next you need to create the `*.ini` with sections, keys and arguments as described in the section *`*.ini` files for Guini* below.
+
+3. Run the file `guini.py` as
+
+    ```bash
+    python guini.py
+    ```
+
+4. Guini will first load the file `guini.ini`. T oload your `.ini` there are two options:
+   * You can rename the `.ini` file you created as `guini.ini`. This is the recomended option if you will run your script several times.
+   * In the GUI, go to `File->Open INI file`, and located your own file.
+
+5. When all the arguments are correct, press the button `Run`. The command that Guini will run will be displayed in the Output window. Any error that occur when run the script will also be displayed in the Output window (*try it!*).
+
+## `*.ini` files for Guini
 
 See the [configparser](https://docs.python.org/3.10/library/configparser.html#supported-ini-file-structure) library for more info on the format of `*.ini` files.
 
@@ -88,7 +106,7 @@ The only mandatory dependency is Python and PySide. Other dependencies are for t
 conda create --name gui_env python=3.12
 conda activate gui_env
 conda install -c conda-forge pyside numpy matplotlib
-````
+```
 
 ## More Screenshots of the GUI (for version 0.3)
 
@@ -163,11 +181,12 @@ arg7 = coef order 4 (Float)
 
 <p align="center">
     <img src="docs/imgs/Screenshot v0p3 with matplotlib.png" height="400">
-</p
+</p>
+
 
 ## Future developments
 
-*(Developers Area)*.
+*(Developers Area)*
 
 ### TO-DO List
 
@@ -178,7 +197,7 @@ arg7 = coef order 4 (Float)
 * [x] Select the `*.ini` file to be loaded.
 * [x] Reconize `filepath` as an option to have `File->Open`
 
-### List of Features to  add
+### List of Features to add
 
 * [ ] Installation using `pip`
 * [ ] Two colunns when the GUI is too tall.
@@ -189,3 +208,13 @@ arg7 = coef order 4 (Float)
 * [ ] Recognize list of numbers
 * [ ] Reconize list of Files
 * [ ] Add buttons to Add/Remove/Edit keys, which will then be added to the `*.ini` file.
+
+## FAQ
+
+**Q: Why the name *Guini*?**
+
+**ANS:** It simply means **GUI for INI**.
+
+**Q: Why is the logo is a guinea pig?**
+
+**ANS:** It is just because it *Guini* sounds line *guinea*.
