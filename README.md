@@ -6,7 +6,7 @@
 
 ## Description
 
-This is small project in [PySide](https://doc.qt.io/qtforpython/PySide/) that create an GUI from an [`*.ini`](https://docs.python.org/3.10/library/configparser.html#supported-ini-file-structure) file, and then run a python script with the values from the file.
+This is small project in [PySide](https://doc.qt.io/qtforpython/PySide/) that creates an GUI from an [`*.ini`](https://docs.python.org/3.10/library/configparser.html#supported-ini-file-structure) file, and then run a python script with the values from the file.
 
 For instance, the `*.ini` file below
 
@@ -57,7 +57,7 @@ For Guini, the requirements for the `*.ini` file are:
 
 * The only mandatory sections are `[Command]` and `[Arguments]`.
 * The section `[Labels]` is optional.
-* The keys are also required to ben named `script_file_name`, `arg1`, `arg2`, ...,  `argN`, accordingly.
+* The keys are also required to be named `script_file_name`, `arg1`, `arg2`, ...,  `argN`, accordingly.
 
 ### Adding variable types
 
