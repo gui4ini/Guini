@@ -4,10 +4,9 @@
     <img src="docs/imgs/Guini - Logo.png" height="400">
 </p>
 
-## TOC
+## Table of Contents
 
-- [Guini: GUI for INI files](#guini-gui-for-ini-files)
-  - [TOC](#toc)
+  - [Table of Contents](#table-of-contents)
   - [Introduction](#introduction)
   - [Description](#description)
   - [Usage](#usage)
