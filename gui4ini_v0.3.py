@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QStatusBar,
     QTextEdit,
     QFileDialog,
+    QMessageBox,
 )
 from PySide6.QtGui import QPalette, QColor, QIntValidator, QDoubleValidator, QAction
 
@@ -52,13 +53,24 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("INI Script Runner v0.3")
         self.setMinimumSize(600, 500)
 
+        # --- State Tracking ---
+        self.is_dirty = False  # To track unsaved changes
+
+        # This dictionary will hold our editor widgets for later access
+        self.editors = {}
+        self.detached_window = None
+        self.process_start_time = None
+        self.main_window_size_before_detach = None
         # --- Menu Bar ---
         file_menu = self.menuBar().addMenu("&File")
         self.open_action = QAction("&Open INI File...", self)
+        self.open_action.setToolTip("Open a different INI configuration file.")
         self.open_action.triggered.connect(self._prompt_open_file)
         self.save_action = QAction("&Save Changes", self)
+        self.save_action.setToolTip("Save the current configuration values to the INI file.")
         self.save_action.triggered.connect(self.save_config)
         self.save_output_action = QAction("Save &Output As...", self)
+        self.save_output_action.setToolTip("Save the contents of the output window to a text file.")
         self.save_output_action.triggered.connect(self.save_output)
         file_menu.addAction(self.open_action)
         file_menu.addAction(self.save_action)
@@ -66,11 +78,13 @@ class MainWindow(QMainWindow):
 
         edit_menu = self.menuBar().addMenu("&Edit")
         self.clear_output_action = QAction("&Clear Output", self)
+        self.clear_output_action.setToolTip("Clear all text from the output window.")
         self.clear_output_action.triggered.connect(self.clear_output)
         edit_menu.addAction(self.clear_output_action)
 
         view_menu = self.menuBar().addMenu("&View")
         self.detach_action = QAction("&Detach Output", self)
+        self.detach_action.setToolTip("Move the output window to a separate, floating window.")
         self.detach_action.setCheckable(True)
         self.detach_action.triggered.connect(self.toggle_detach_output)
         view_menu.addAction(self.detach_action)
@@ -80,12 +94,6 @@ class MainWindow(QMainWindow):
         self.script_dir = script_path.parent
         self.config_file = script_path.with_suffix(".ini")
         self.config = configparser.ConfigParser()
-
-        # This dictionary will hold our editor widgets for later access
-        self.editors = {}
-        self.detached_window = None
-        self.process_start_time = None
-        self.main_window_size_before_detach = None
 
         # Main layout and the container widget
         self.main_layout = QVBoxLayout()
@@ -103,8 +111,10 @@ class MainWindow(QMainWindow):
         # --- Button Layout ---
         button_layout = QHBoxLayout()
         self.run_button = QPushButton("Run")
+        self.run_button.setToolTip("Execute the script with the current INI settings.")
         self.run_button.clicked.connect(self.run_script)
         self.stop_button = QPushButton("Stop")
+        self.stop_button.setToolTip("Terminate the currently running script.")
         self.stop_button.clicked.connect(self.stop_script)
         self.stop_button.setEnabled(False)
         button_layout.addWidget(self.run_button)
@@ -133,6 +143,38 @@ class MainWindow(QMainWindow):
         # Initial load of the default config file
         self._load_and_build_ui(self.config_file)
 
+    def closeEvent(self, event):
+        """Override the close event to check for unsaved changes."""
+        if not self._prompt_to_save_if_dirty():
+            event.ignore()  # User cancelled the close operation
+            return
+        event.accept()
+
+    def _set_dirty(self, is_dirty: bool):
+        """Sets the dirty status and updates the window title accordingly."""
+        if self.is_dirty == is_dirty:
+            return  # No change
+
+        self.is_dirty = is_dirty
+        title = self.windowTitle()
+        if is_dirty and not title.endswith("*"):
+            self.setWindowTitle(title + "*")
+        elif not is_dirty and title.endswith("*"):
+            self.setWindowTitle(title[:-1])
+
+    def _prompt_to_save_if_dirty(self) -> bool:
+        """Checks for unsaved changes and prompts the user. Returns False if action is cancelled."""
+        if not self.is_dirty:
+            return True  # Nothing to do, proceed
+        reply = QMessageBox.question(self, "Unsaved Changes",
+                                     "You have unsaved changes. Do you want to save them?",
+                                     QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel)
+        if reply == QMessageBox.StandardButton.Save:
+            self.save_config()
+        elif reply == QMessageBox.StandardButton.Cancel:
+            return False
+        return True
+
     def _set_ui_for_running_state(self, is_running: bool):
         """Enables/disables UI elements based on process state."""
         self.run_button.setEnabled(not is_running)
@@ -156,6 +198,9 @@ class MainWindow(QMainWindow):
 
     def _prompt_open_file(self):
         """Opens a dialog to select a new INI file and reloads the UI."""
+        if not self._prompt_to_save_if_dirty():
+            return # User cancelled
+
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Open INI File", str(self.script_dir), "INI Files (*.ini);;All Files (*)"
         )
@@ -174,7 +219,7 @@ class MainWindow(QMainWindow):
     def _load_and_build_ui(self, file_path: pathlib.Path):
         """Clears the current UI and builds a new one from the given INI file."""
         self.config_file = file_path
-        self.setWindowTitle(f"INI Script Runner v0.3 - {self.config_file.name}")
+        self.setWindowTitle(f"INI Script Runner - {self.config_file.name}")
         self._clear_form_layout()
         self.editors.clear()
         self._set_initial_output_info()
@@ -215,6 +260,9 @@ class MainWindow(QMainWindow):
             msg = "Error: INI file is missing the required [Command] section."
             self.statusBar().showMessage(msg, 5000)
             self._log_message(msg, color="red")
+
+        # After loading, the state is clean
+        self._set_dirty(False)
 
     def toggle_detach_output(self):
         """Detaches or attaches the output window."""
@@ -340,14 +388,17 @@ class MainWindow(QMainWindow):
         # Create the widget based on the determined type
         if final_type == "boolean":
             editor = QCheckBox()
+            editor.stateChanged.connect(lambda: self._set_dirty(True))
             editor.setChecked(value.lower() == 'true')
             return editor, "boolean"
         elif final_type == "integer":
             editor = QLineEdit(value)
+            editor.textChanged.connect(lambda: self._set_dirty(True))
             editor.setValidator(QIntValidator())
             return editor, "integer"
         elif final_type == "float":
             editor = QLineEdit(value)
+            editor.textChanged.connect(lambda: self._set_dirty(True))
             editor.setValidator(QDoubleValidator())
             return editor, "float"
         elif final_type == "filename":
@@ -356,6 +407,7 @@ class MainWindow(QMainWindow):
             layout = QHBoxLayout(container)
             layout.setContentsMargins(0, 0, 0, 0)
             line_edit = QLineEdit(value)
+            line_edit.textChanged.connect(lambda: self._set_dirty(True))
             browse_button = QPushButton("...")
             browse_button.clicked.connect(lambda: self._open_file_dialog(line_edit))
             layout.addWidget(line_edit)
@@ -365,6 +417,7 @@ class MainWindow(QMainWindow):
 
         # Default to string for any other case (including unknown type hints)
         editor = QLineEdit(value)
+        editor.textChanged.connect(lambda: self._set_dirty(True))
         return editor, "string"
 
     def save_config(self):
@@ -384,6 +437,7 @@ class MainWindow(QMainWindow):
             self.config.write(configfile)
 
         self.statusBar().showMessage(f"Configuration saved to {self.config_file}", 3000)
+        self._set_dirty(False)
 
     def run_script(self):
         """Read current values from the UI and execute the script."""
