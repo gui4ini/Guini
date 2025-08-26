@@ -3,7 +3,7 @@ import configparser
 import pathlib
 import re
 from datetime import datetime
-from PySide6.QtCore import QProcess, Signal
+from PySide6.QtCore import QProcess
 from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -25,16 +25,33 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QMessageBox,
 )
-from PySide6.QtGui import QPalette, QColor, QIntValidator, QDoubleValidator, QAction, QKeySequence
+from PySide6.QtGui import (
+    QPalette, QColor, QIntValidator, QDoubleValidator, QAction, QKeySequence, QCloseEvent
+)
+
+
+class FileNameWidget(QWidget):
+    """A composite widget for a line edit and a browse button."""
+    def __init__(self, initial_path: str, parent: QWidget | None = None):
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        self.line_edit = QLineEdit(initial_path)
+        self.browse_button = QPushButton("...")
+        layout.addWidget(self.line_edit)
+        layout.addWidget(self.browse_button)
 
 
 class SettingsDialog(QDialog):
     """A dialog to configure application-wide settings."""
 
-    def __init__(self, parent=None, settings_parser=None):
+    def __init__(self, parent: QWidget | None = None, settings_parser: configparser.ConfigParser | None = None):
         super().__init__(parent)
         self.setWindowTitle("Application Settings")
-        self.settings = settings_parser
+        if settings_parser is None:
+            self.settings = configparser.ConfigParser()
+        else:
+            self.settings = settings_parser
 
         layout = QVBoxLayout(self)
         form_layout = QFormLayout()
@@ -85,8 +102,12 @@ class MainWindow(QMainWindow):
     We inherit from QMainWindow to get all the standard window features.
     """
 
+    SETTINGS_SECTION = 'Settings'
+
     def __init__(self):
         super().__init__()
+        self.config_file: pathlib.Path | None = None
+        self.new_tab_button: QPushButton | None = None
 
         # --- App Settings Handling ---
         self.script_dir = pathlib.Path(__file__).parent.resolve()
@@ -94,8 +115,8 @@ class MainWindow(QMainWindow):
         self.app_settings = configparser.ConfigParser()
         self._load_app_settings()  # This will create the file if it doesn't exist
 
-        self.multi_tab_enabled = self.app_settings.getboolean('Settings', 'multi_tab_mode', fallback=False)
-        self.remember_window_size = self.app_settings.getboolean('Settings', 'remember_window_size', fallback=True)
+        self.multi_tab_enabled = self.app_settings.getboolean(self.SETTINGS_SECTION, 'multi_tab_mode', fallback=False)
+        self.remember_window_size = self.app_settings.getboolean(self.SETTINGS_SECTION, 'remember_window_size', fallback=True)
         # --- End App Settings ---
 
         self.setWindowTitle("INI Script Runner")
@@ -189,7 +210,7 @@ class MainWindow(QMainWindow):
 
         # --- DETERMINE INITIAL SCRIPT CONFIG FILE ---
         # This is the file with [Command], [Arguments], etc.
-        initial_script_config_path_str = self.app_settings.get('Settings', 'last_loaded_ini', fallback=None)
+        initial_script_config_path_str = self.app_settings.get(self.SETTINGS_SECTION, 'last_loaded_ini', fallback=None)
         initial_script_config_path = None
 
         if initial_script_config_path_str:
@@ -206,7 +227,7 @@ class MainWindow(QMainWindow):
         self._load_and_build_ui(initial_script_config_path)
         self.create_new_tab()
 
-    def closeEvent(self, event):
+    def closeEvent(self, event: QCloseEvent):
         """Override the close event to check for unsaved changes and running processes."""
         if not self._prompt_to_save_if_dirty():
             event.ignore()  # User cancelled the close operation
@@ -225,8 +246,8 @@ class MainWindow(QMainWindow):
 
         if self.remember_window_size:
             size = self.size()
-            self.app_settings.set('Settings', 'window_width', str(size.width()))
-            self.app_settings.set('Settings', 'window_height', str(size.height()))
+            self.app_settings.set(self.SETTINGS_SECTION, 'window_width', str(size.width()))
+            self.app_settings.set(self.SETTINGS_SECTION, 'window_height', str(size.height()))
             self._save_app_settings()
 
         event.accept()
@@ -293,7 +314,7 @@ class MainWindow(QMainWindow):
         self.update_button_states()
         return output_widget
 
-    def close_tab(self, index):
+    def close_tab(self, index: int):
         """Handles the request to close a tab."""
         if not self.multi_tab_enabled or self.tab_widget.count() <= 1:
             return
@@ -326,23 +347,26 @@ class MainWindow(QMainWindow):
 
     def handle_tab_output(self, process: QProcess):
         widget = self._find_widget_for_process(process)
-        if not widget: return
+        if not widget:
+            return
         data = process.readAllStandardOutput()
-        text = str(data, 'utf-8').strip()
+        text = bytes(data).decode('utf-8', errors='ignore').strip()
         for line in text.splitlines():
             self._log_message(widget, f"> {line}")
 
     def handle_tab_error(self, process: QProcess):
         widget = self._find_widget_for_process(process)
-        if not widget: return
+        if not widget:
+            return
         data = process.readAllStandardError()
-        error_text = str(data, 'utf-8').strip()
+        error_text = bytes(data).decode('utf-8', errors='ignore').strip()
         for line in error_text.splitlines():
             self._log_message(widget, f"! ERROR: {line}", color="red")
 
     def tab_process_finished(self, process: QProcess):
         widget = self._find_widget_for_process(process)
-        if not widget: return  # Widget might have been closed
+        if not widget:
+            return  # Widget might have been closed
 
         start_time = process.property("start_time")
         end_time = datetime.now()
@@ -371,16 +395,21 @@ class MainWindow(QMainWindow):
         process.deleteLater()
         self.update_button_states()
 
-    def _get_script_and_args(self):
-        """Reads UI values and returns the script path and arguments."""
+    def _get_ui_values(self) -> dict[tuple[str, str], str]:
+        """Reads all current values from the UI editor widgets and returns them in a dictionary."""
         ui_values = {}
         for (section, key), editor in self.editors.items():
-            if hasattr(editor, 'lineEdit'):
-                ui_values[(section, key)] = editor.lineEdit.text()
+            if isinstance(editor, FileNameWidget):
+                ui_values[(section, key)] = editor.line_edit.text()
             elif isinstance(editor, QCheckBox):
                 ui_values[(section, key)] = str(editor.isChecked()).lower()
             elif isinstance(editor, QLineEdit):
                 ui_values[(section, key)] = editor.text()
+        return ui_values
+
+    def _get_script_and_args(self) -> tuple[pathlib.Path, list[str]] | tuple[None, None]:
+        """Reads UI values, validates the script, and returns the script path and sorted arguments."""
+        ui_values = self._get_ui_values()
 
         script_filename = ui_values.get(('Command', 'script_file_name'))
         if not script_filename:
@@ -411,29 +440,29 @@ class MainWindow(QMainWindow):
             self.app_settings.read(self.settings_file)
 
         # Ensure the 'Settings' section exists
-        if not self.app_settings.has_section('Settings'):
-            self.app_settings.add_section('Settings')
+        if not self.app_settings.has_section(self.SETTINGS_SECTION):
+            self.app_settings.add_section(self.SETTINGS_SECTION)
 
         # Check for default values and write the file if it was missing or incomplete
         made_changes = False
-        if not self.app_settings.has_option('Settings', 'multi_tab_mode'):
-            self.app_settings.set('Settings', 'multi_tab_mode', 'false')
+        if not self.app_settings.has_option(self.SETTINGS_SECTION, 'multi_tab_mode'):
+            self.app_settings.set(self.SETTINGS_SECTION, 'multi_tab_mode', 'false')
             made_changes = True
-        if not self.app_settings.has_option('Settings', 'remember_window_size'):
-            self.app_settings.set('Settings', 'remember_window_size', 'true')
+        if not self.app_settings.has_option(self.SETTINGS_SECTION, 'remember_window_size'):
+            self.app_settings.set(self.SETTINGS_SECTION, 'remember_window_size', 'true')
             made_changes = True
-        if not self.app_settings.has_option('Settings', 'window_width'):
-            self.app_settings.set('Settings', 'window_width', '600')
+        if not self.app_settings.has_option(self.SETTINGS_SECTION, 'window_width'):
+            self.app_settings.set(self.SETTINGS_SECTION, 'window_width', '600')
             made_changes = True
-        if not self.app_settings.has_option('Settings', 'window_height'):
-            self.app_settings.set('Settings', 'window_height', '500')
+        if not self.app_settings.has_option(self.SETTINGS_SECTION, 'window_height'):
+            self.app_settings.set(self.SETTINGS_SECTION, 'window_height', '500')
             made_changes = True
-        if not self.app_settings.has_option('Settings', 'argument_columns'):
-            self.app_settings.set('Settings', 'argument_columns', '1')
+        if not self.app_settings.has_option(self.SETTINGS_SECTION, 'argument_columns'):
+            self.app_settings.set(self.SETTINGS_SECTION, 'argument_columns', '1')
             made_changes = True
-        if not self.app_settings.has_option('Settings', 'last_loaded_ini'):
+        if not self.app_settings.has_option(self.SETTINGS_SECTION, 'last_loaded_ini'):
             default_ini_path = self.script_dir / "default.ini"
-            self.app_settings.set('Settings', 'last_loaded_ini', str(default_ini_path.resolve()))
+            self.app_settings.set(self.SETTINGS_SECTION, 'last_loaded_ini', str(default_ini_path.resolve()))
             made_changes = True
 
         if made_changes:
@@ -450,8 +479,8 @@ class MainWindow(QMainWindow):
     def open_settings_dialog(self):
         """Opens the settings dialog to allow user configuration."""
         # Store old values to check for changes that require action
-        old_multi_tab = self.app_settings.getboolean('Settings', 'multi_tab_mode', fallback=False)
-        old_arg_cols = self.app_settings.getint('Settings', 'argument_columns', fallback=1)
+        old_multi_tab = self.app_settings.getboolean(self.SETTINGS_SECTION, 'multi_tab_mode', fallback=False)
+        old_arg_cols = self.app_settings.getint(self.SETTINGS_SECTION, 'argument_columns', fallback=1)
 
         dialog = SettingsDialog(self, settings_parser=self.app_settings)
 
@@ -459,8 +488,8 @@ class MainWindow(QMainWindow):
             dialog.apply_settings()
             self._save_app_settings()
 
-            new_multi_tab = self.app_settings.getboolean('Settings', 'multi_tab_mode', fallback=False)
-            new_arg_cols = self.app_settings.getint('Settings', 'argument_columns', fallback=1)
+            new_multi_tab = self.app_settings.getboolean(self.SETTINGS_SECTION, 'multi_tab_mode', fallback=False)
+            new_arg_cols = self.app_settings.getint(self.SETTINGS_SECTION, 'argument_columns', fallback=1)
 
             # Check for restart-required changes
             if old_multi_tab != new_multi_tab:
@@ -477,7 +506,8 @@ class MainWindow(QMainWindow):
                                              "Changes to the argument layout require the UI to be reloaded.\n\nReload now?",
                                              QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
                 if reply == QMessageBox.StandardButton.Yes:
-                    self._load_and_build_ui(self.config_file)
+                    if self.config_file:
+                        self._load_and_build_ui(self.config_file)
             else:
                 QMessageBox.information(self, "Settings Saved", "Your settings have been saved.")
 
@@ -486,7 +516,11 @@ class MainWindow(QMainWindow):
         # The close() call will trigger the closeEvent, which saves settings and checks for running processes.
         # If close() returns True, it means the window was closed successfully.
         if self.close():
-            QProcess.startDetached(sys.executable, sys.argv)
+            executable = sys.executable
+            if executable:
+                QProcess.startDetached(executable, sys.argv)
+            else:
+                QMessageBox.critical(self, "Restart Failed", "Could not determine the Python executable path to restart.")
 
     def _open_file_dialog(self, line_edit_widget: QLineEdit):
         """Opens a file dialog and sets the selected path in the provided QLineEdit."""
@@ -515,6 +549,44 @@ class MainWindow(QMainWindow):
                 widget.setParent(None)
                 widget.deleteLater()
 
+    def _build_command_section_ui(self, section_items: list, start_row: int) -> int:
+        """Builds the UI for the [Command] section."""
+        num_columns = self.app_settings.getint(self.SETTINGS_SECTION, 'argument_columns', fallback=1)
+        current_row = start_row
+        for key, value in section_items:
+            label_text = self.config.get('Labels', key, fallback=key)
+            clean_label, type_hint = self._parse_label(label_text)
+            editor, _ = self._create_editor_for_value(value, type_hint=type_hint)
+            label = QLabel(clean_label)
+            self.config_layout.addWidget(label, current_row, 0)
+            self.config_layout.addWidget(editor, current_row, 1, 1, num_columns * 2 - 1)
+            self.editors[('Command', key)] = editor
+            current_row += 1
+        return current_row
+
+    def _build_arguments_section_ui(self, section_items: list, start_row: int) -> int:
+        """Builds the UI for the [Arguments] section with multiple columns."""
+        if not section_items:
+            return start_row
+
+        num_columns = self.app_settings.getint(self.SETTINGS_SECTION, 'argument_columns', fallback=1)
+        num_args = len(section_items)
+        rows_per_col = (num_args + num_columns - 1) // num_columns
+
+        for i, (key, value) in enumerate(section_items):
+            target_col = i // rows_per_col
+            target_row_offset = i % rows_per_col
+
+            label_text = self.config.get('Labels', key, fallback=key)
+            clean_label, type_hint = self._parse_label(label_text)
+            editor, _ = self._create_editor_for_value(value, type_hint=type_hint)
+            label = QLabel(clean_label)
+            self.config_layout.addWidget(label, start_row + target_row_offset, target_col * 2)
+            self.config_layout.addWidget(editor, start_row + target_row_offset, target_col * 2 + 1)
+            self.editors[('Arguments', key)] = editor
+
+        return start_row + rows_per_col
+
     def _load_and_build_ui(self, file_path: pathlib.Path):
         """Clears the current UI and builds a new one from the given INI file."""
         # Add robust error handling for file loading
@@ -523,7 +595,7 @@ class MainWindow(QMainWindow):
             # We can't proceed without a config file, so leave the UI empty.
             return
 
-        self.config_file = file_path  # This is the currently loaded SCRIPT config
+        self.config_file = file_path  #  This is the currently loaded SCRIPT config
         self.setWindowTitle(f"INI Script Runner - {self.config_file.name}")
         self._clear_config_layout()
         self.editors.clear()
@@ -537,7 +609,7 @@ class MainWindow(QMainWindow):
             return
 
         # --- SAVE THIS PATH AS THE LAST LOADED INI ---
-        self.app_settings.set('Settings', 'last_loaded_ini', str(self.config_file.resolve()))
+        self.app_settings.set(self.SETTINGS_SECTION, 'last_loaded_ini', str(self.config_file.resolve()))
         self._save_app_settings()
         # --- END SAVE ---
 
@@ -553,39 +625,11 @@ class MainWindow(QMainWindow):
                 current_row += 1
 
                 if section_name == 'Arguments':
-                    # Use a more robust method for multi-column layout
-                    args_list = list(self.config.items(section_name))
-                    if not args_list:
-                        continue
-
-                    num_args = len(args_list)
-                    rows_per_col = (num_args + num_columns - 1) // num_columns
-                    args_base_row = current_row
-
-                    for i, (key, value) in enumerate(args_list):
-                        # Calculate target row and column for column-first layout
-                        target_col = i // rows_per_col
-                        target_row_offset = i % rows_per_col
-
-                        label_text = self.config.get('Labels', key, fallback=key)
-                        clean_label, type_hint = self._parse_label(label_text)
-                        editor, _ = self._create_editor_for_value(value, type_hint=type_hint)
-                        label = QLabel(clean_label)
-                        self.config_layout.addWidget(label, args_base_row + target_row_offset, target_col * 2)
-                        self.config_layout.addWidget(editor, args_base_row + target_row_offset, target_col * 2 + 1)
-                        self.editors[(section_name, key)] = editor
-
-                    current_row += rows_per_col
-                else:  # For 'Command' and other sections, use a standard form layout
-                    for key, value in self.config.items(section_name):
-                        label_text = self.config.get('Labels', key, fallback=key)
-                        clean_label, type_hint = self._parse_label(label_text)
-                        editor, _ = self._create_editor_for_value(value, type_hint=type_hint)
-                        label = QLabel(clean_label)
-                        self.config_layout.addWidget(label, current_row, 0)
-                        self.config_layout.addWidget(editor, current_row, 1, 1, num_columns * 2 - 1)
-                        self.editors[(section_name, key)] = editor
-                        current_row += 1
+                    items = list(self.config.items(section_name))
+                    current_row = self._build_arguments_section_ui(items, current_row)
+                elif section_name == 'Command':
+                    items = list(self.config.items(section_name))
+                    current_row = self._build_command_section_ui(items, current_row)
 
         # Final check to ensure the critical command section was loaded
         if not self.config.has_section('Command'):
@@ -613,7 +657,7 @@ class MainWindow(QMainWindow):
         self._log_message(widget, f"Executable: {sys.executable}", color="#666666")
         self._log_message(widget, "----------------------------------", bold=True)
 
-    def _log_message(self, widget: QTextEdit, text: str, color: str = None, bold: bool = False):
+    def _log_message(self, widget: QTextEdit, text: str, color: str | None = None, bold: bool = False):
         """Appends a message to the output area with optional styling."""
         if bold:
             text = f"<b>{text}</b>"
@@ -690,18 +734,10 @@ class MainWindow(QMainWindow):
             editor.setValidator(QDoubleValidator())
             return editor, "float"
         elif final_type == "filename":
-            # Create a composite widget with a QLineEdit and a "Browse" button
-            container = QWidget()
-            layout = QHBoxLayout(container)
-            layout.setContentsMargins(0, 0, 0, 0)
-            line_edit = QLineEdit(value)
-            line_edit.textChanged.connect(lambda: self._set_dirty(True))
-            browse_button = QPushButton("...")
-            browse_button.clicked.connect(lambda: self._open_file_dialog(line_edit))
-            layout.addWidget(line_edit)
-            layout.addWidget(browse_button)
-            container.lineEdit = line_edit  # Store a reference for easy access
-            return container, "filename"
+            editor = FileNameWidget(value)
+            editor.line_edit.textChanged.connect(lambda: self._set_dirty(True))
+            editor.browse_button.clicked.connect(lambda: self._open_file_dialog(editor.line_edit))
+            return editor, "filename"
 
         # Default to string for any other case (including unknown type hints)
         editor = QLineEdit(value)
@@ -710,19 +746,13 @@ class MainWindow(QMainWindow):
 
     def save_config(self):
         """Iterate through the editors and save the values back to the config object."""
-        for (section, key), editor in self.editors.items():
-            value_to_save = ""
-            if hasattr(editor, 'lineEdit'):  # Check for our composite file widget
-                value_to_save = editor.lineEdit.text()
-            elif isinstance(editor, QCheckBox):
-                value_to_save = str(editor.isChecked()).lower()
-            elif isinstance(editor, QLineEdit):
-                value_to_save = editor.text()
+        ui_values = self._get_ui_values()
+        for (section, key), value in ui_values.items():
+            self.config.set(section, key, value)
 
-            self.config.set(section, key, value_to_save)
-
-        with open(self.config_file, "w") as configfile:
-            self.config.write(configfile)
+        if self.config_file:
+            with open(self.config_file, "w") as configfile:
+                self.config.write(configfile)
 
         self.statusBar().showMessage(f"Configuration saved to {self.config_file}", 3000)
         self._set_dirty(False)
