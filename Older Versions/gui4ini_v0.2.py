@@ -265,13 +265,16 @@ class MainWindow(QMainWindow):
             self.output_area.setHtml(f'<font color="red">Error: Script not found at \'{script_path}\'.</font>')
             return
 
-        # Collect arguments, sorted by key (arg1, arg2, etc.)
-        args = []
-        # Filter for keys in the 'Arguments' section and sort them
-        arg_keys = sorted([k for s, k in ui_values.keys() if s == 'Arguments'])
-        for key in arg_keys:
-            if key.startswith('arg'):
-                args.append(ui_values[('Arguments', key)])
+        # --- Collect and sort arguments numerically ---
+        # Filter for keys like 'arg1', 'arg2', etc. that have a numeric part.
+        argument_keys = [
+            k for s, k in ui_values.keys()
+            if s == 'Arguments' and k.startswith('arg') and k[3:].isdigit()
+        ]
+        # Sort keys based on the integer value of their numeric part.
+        sorted_arg_keys = sorted(argument_keys, key=lambda k: int(k[3:]))
+        # Build the final list of argument values in the correct order.
+        args = [ui_values[('Arguments', key)] for key in sorted_arg_keys]
 
         self.statusBar().showMessage(f"Running '{script_filename}'...")
         self._set_ui_for_running_state(True)
