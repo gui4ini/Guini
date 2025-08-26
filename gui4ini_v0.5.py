@@ -432,6 +432,27 @@ class MainWindow(QMainWindow):
         # Build the final list of argument values in the correct order.
         args = [ui_values[('Arguments', key)] for key in sorted_arg_keys]
 
+        # --- Validate for empty arguments before the last non-empty one ---
+        last_non_empty_index = -1
+        for i, value in reversed(list(enumerate(args))):
+            if value:
+                last_non_empty_index = i
+                break
+
+        # If there are arguments, check for gaps.
+        if last_non_empty_index > 0:
+            for i in range(last_non_empty_index):
+                if not args[i]:
+                    # The argument number is the index + 1
+                    arg_number = i + 1
+                    QMessageBox.warning(
+                        self,
+                        "Invalid Arguments",
+                        f"Argument 'arg{arg_number}' is empty, but a later argument has a value.\n\n"
+                        "Please fill in all preceding arguments before running the script."
+                    )
+                    return None, None
+
         return script_path, args
 
     def _load_app_settings(self):
