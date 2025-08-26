@@ -233,6 +233,7 @@ arg7 = coef order 4 (Float)
 
 ### List of Features to add
 
+* [ ] Use `pytest` and Github actions
 * [ ] Update Screenshots for v0.5
 * [ ] Add option to reload `*.ini`
 * [ ] Add tool tips for variable type of arguments
