@@ -233,6 +233,9 @@ arg7 = coef order 4 (Float)
 
 ### List of Features to add
 
+* [ ] Update Screenshots for v0.5
+* [ ] Add option to reload `*.ini`
+* [ ] Add tool tips for variable type of arguments
 * [ ] Installation using `pip`
 * [ ] Recognize list of numbers
 * [ ] Reconize list of Files
