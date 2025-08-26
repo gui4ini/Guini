@@ -1,6 +1,5 @@
 import sys
 import configparser
-import subprocess
 import pathlib
 import re
 from datetime import datetime
@@ -20,9 +19,45 @@ from PySide6.QtWidgets import (
     QTextEdit,
     QFileDialog,
     QTabWidget,
+    QDialog,
+    QDialogButtonBox,
     QMessageBox,
 )
 from PySide6.QtGui import QPalette, QColor, QIntValidator, QDoubleValidator, QAction, QKeySequence
+
+
+class SettingsDialog(QDialog):
+    """A dialog to configure application-wide settings."""
+
+    def __init__(self, parent=None, settings_parser=None):
+        super().__init__(parent)
+        self.setWindowTitle("Application Settings")
+        self.settings = settings_parser
+
+        layout = QVBoxLayout(self)
+        form_layout = QFormLayout()
+
+        # --- UI Settings ---
+        ui_label = QLabel("User Interface")
+        ui_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        form_layout.addRow(ui_label)
+
+        self.multi_tab_checkbox = QCheckBox("Enable Multi-Tab Mode")
+        self.multi_tab_checkbox.setToolTip("Allows opening multiple script outputs in tabs.\nRequires application restart.")
+        self.multi_tab_checkbox.setChecked(self.settings.getboolean('Settings', 'multi_tab_mode', fallback=False))
+        form_layout.addRow(self.multi_tab_checkbox)
+
+        layout.addLayout(form_layout)
+
+        # OK and Cancel buttons
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
+
+    def apply_settings(self):
+        """Updates the settings ConfigParser object with values from the dialog."""
+        self.settings.set('Settings', 'multi_tab_mode', str(self.multi_tab_checkbox.isChecked()).lower())
 
 
 class MainWindow(QMainWindow):
@@ -33,6 +68,15 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
+
+        # --- App Settings Handling ---
+        self.script_dir = pathlib.Path(__file__).parent.resolve()
+        self.settings_file = self.script_dir / "gui4ini_v0.4.ini"
+        self.app_settings = configparser.ConfigParser()
+        self._load_app_settings()  # This will create the file if it doesn't exist
+
+        self.multi_tab_enabled = self.app_settings.getboolean('Settings', 'multi_tab_mode', fallback=False)
+        # --- End App Settings ---
 
         self.setWindowTitle("INI Script Runner")
         self.setMinimumSize(600, 500)
@@ -68,12 +112,12 @@ class MainWindow(QMainWindow):
         self.clear_output_action.setToolTip("Clear all text from the output window.")
         self.clear_output_action.setShortcut("Ctrl+L")
         self.clear_output_action.triggered.connect(self.clear_output)
+        self.settings_action = QAction("&Settings...", self)
+        self.settings_action.triggered.connect(self.open_settings_dialog)
         edit_menu.addAction(self.clear_output_action)
+        edit_menu.addSeparator()
+        edit_menu.addAction(self.settings_action)
 
-        # Dynamically determine the config file path based on the script's name
-        script_path = pathlib.Path(__file__).resolve()
-        self.script_dir = script_path.parent
-        self.config_file = script_path.with_suffix(".ini")
         self.config = configparser.ConfigParser()
 
         # Main layout and the container widget
@@ -98,24 +142,42 @@ class MainWindow(QMainWindow):
         self.stop_button.setToolTip("Terminate the currently running script.")
         self.stop_button.clicked.connect(self.stop_script)
         self.stop_button.setEnabled(False)
-        self.new_tab_button = QPushButton("New Output Tab")
-        self.new_tab_button.setToolTip("Open a new tab to run a script in.")
-        self.new_tab_button.clicked.connect(self.create_new_tab)
         button_layout.addWidget(self.run_button)
         button_layout.addWidget(self.stop_button)
         button_layout.addStretch()
-        button_layout.addWidget(self.new_tab_button)
+
+        if self.multi_tab_enabled:
+            self.new_tab_button = QPushButton("New Output Tab")
+            self.new_tab_button.setToolTip("Open a new tab to run a script in.")
+            self.new_tab_button.clicked.connect(self.create_new_tab)
+            button_layout.addWidget(self.new_tab_button)
+
         self.main_layout.addLayout(button_layout)
 
         # --- Tabbed Output Area ---
         self.tab_widget = QTabWidget()
-        self.tab_widget.setTabsClosable(True)
+        self.tab_widget.setTabsClosable(self.multi_tab_enabled)
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
         self.tab_widget.currentChanged.connect(self.update_button_states)
         self.main_layout.addWidget(self.tab_widget)
 
-        # Initial load and UI setup
-        self._load_and_build_ui(self.config_file)
+        # --- DETERMINE INITIAL SCRIPT CONFIG FILE ---
+        # This is the file with [Command], [Arguments], etc.
+        initial_script_config_path_str = self.app_settings.get('Settings', 'last_loaded_ini', fallback=None)
+        initial_script_config_path = None
+
+        if initial_script_config_path_str:
+            path_candidate = pathlib.Path(initial_script_config_path_str)
+            if path_candidate.exists():
+                initial_script_config_path = path_candidate
+
+        # Fallback to a default if the last one doesn't exist or isn't set
+        if not initial_script_config_path:
+            initial_script_config_path = self.script_dir / "default.ini"
+        # --- END DETERMINATION ---
+
+        # Initial load and UI setup using the determined script config file
+        self._load_and_build_ui(initial_script_config_path)
         self.create_new_tab()
 
     def closeEvent(self, event):
@@ -201,7 +263,7 @@ class MainWindow(QMainWindow):
 
     def close_tab(self, index):
         """Handles the request to close a tab."""
-        if self.tab_widget.count() <= 1:
+        if not self.multi_tab_enabled or self.tab_widget.count() <= 1:
             return
 
         widget_to_close = self.tab_widget.widget(index)
@@ -306,6 +368,45 @@ class MainWindow(QMainWindow):
 
         return script_path, args
 
+    def _load_app_settings(self):
+        """Loads app settings from the dedicated INI file, creating it if it doesn't exist."""
+        if self.settings_file.exists():
+            self.app_settings.read(self.settings_file)
+
+        # Ensure the 'Settings' section exists
+        if not self.app_settings.has_section('Settings'):
+            self.app_settings.add_section('Settings')
+
+        # Check for default values and write the file if it was missing or incomplete
+        made_changes = False
+        if not self.app_settings.has_option('Settings', 'multi_tab_mode'):
+            self.app_settings.set('Settings', 'multi_tab_mode', 'false')
+            made_changes = True
+        if not self.app_settings.has_option('Settings', 'last_loaded_ini'):
+            default_ini_path = self.script_dir / "default.ini"
+            self.app_settings.set('Settings', 'last_loaded_ini', str(default_ini_path.resolve()))
+            made_changes = True
+
+        if made_changes:
+            self._save_app_settings()
+
+    def _save_app_settings(self):
+        """Saves the current app settings to the dedicated INI file."""
+        try:
+            with open(self.settings_file, 'w') as f:
+                self.app_settings.write(f)
+        except Exception as e:
+            self.statusBar().showMessage(f"Warning: Could not save settings: {e}", 5000)
+
+    def open_settings_dialog(self):
+        """Opens the settings dialog to allow user configuration."""
+        dialog = SettingsDialog(self, settings_parser=self.app_settings)
+        if dialog.exec():
+            dialog.apply_settings()
+            self._save_app_settings()
+            QMessageBox.information(self, "Settings Saved",
+                                    "Changes to the UI mode will take effect the next time you start the application.")
+
     def _open_file_dialog(self, line_edit_widget: QLineEdit):
         """Opens a file dialog and sets the selected path in the provided QLineEdit."""
         # We use self.script_dir to give the dialog a sensible starting place
@@ -335,15 +436,16 @@ class MainWindow(QMainWindow):
 
     def _load_and_build_ui(self, file_path: pathlib.Path):
         """Clears the current UI and builds a new one from the given INI file."""
-        self.config_file = file_path
+        # Add robust error handling for file loading
+        if not file_path.exists():
+            QMessageBox.critical(self, "Config File Not Found", f"The configuration file could not be found at:\n{file_path}")
+            # We can't proceed without a config file, so leave the UI empty.
+            return
+
+        self.config_file = file_path  # This is the currently loaded SCRIPT config
         self.setWindowTitle(f"INI Script Runner - {self.config_file.name}")
         self._clear_form_layout()
         self.editors.clear()
-        # Add robust error handling for file loading
-        if not self.config_file.exists():
-            msg = f"Error: Configuration file not found at '{self.config_file}'"
-            self.statusBar().showMessage(msg, 5000)
-            return
 
         self.config = configparser.ConfigParser()
         try:
@@ -352,6 +454,11 @@ class MainWindow(QMainWindow):
             msg = f"Error parsing INI file: {e}"
             self.statusBar().showMessage(msg, 5000)
             return
+
+        # --- SAVE THIS PATH AS THE LAST LOADED INI ---
+        self.app_settings.set('Settings', 'last_loaded_ini', str(self.config_file.resolve()))
+        self._save_app_settings()
+        # --- END SAVE ---
 
         sections_to_display = ['Command', 'Arguments']
         for section_name in sections_to_display:
