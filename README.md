@@ -213,7 +213,6 @@ arg7 = coef order 4 (Float)
 
 ## Future developments
 
-*(Developers Area)*
 
 ### TO-DO List
 
