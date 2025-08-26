@@ -53,6 +53,26 @@ class SettingsDialog(QDialog):
         self.remember_size_checkbox.setChecked(self.settings.getboolean('Settings', 'remember_window_size', fallback=True))
         form_layout.addRow(self.remember_size_checkbox)
 
+        # Add width and height spinboxes for fixed size, inside a container
+        size_container = QWidget()
+        size_layout = QHBoxLayout(size_container)
+        size_layout.setContentsMargins(0, 0, 0, 0)
+        self.width_spinbox = QSpinBox()
+        self.width_spinbox.setRange(300, 4000)
+        self.width_spinbox.setValue(self.settings.getint('Settings', 'window_width', fallback=600))
+        self.height_spinbox = QSpinBox()
+        self.height_spinbox.setRange(300, 4000)
+        self.height_spinbox.setValue(self.settings.getint('Settings', 'window_height', fallback=500))
+        size_layout.addWidget(QLabel("Width:"))
+        size_layout.addWidget(self.width_spinbox)
+        size_layout.addWidget(QLabel("Height:"))
+        size_layout.addWidget(self.height_spinbox)
+        form_layout.addRow("Fixed Window Size:", size_container)
+
+        # The fixed size option is only enabled if we are *not* remembering the size
+        self.remember_size_checkbox.toggled.connect(lambda checked: size_container.setDisabled(checked))
+        size_container.setDisabled(self.remember_size_checkbox.isChecked())
+
         layout_label = QLabel("Layout")
         layout_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
         form_layout.addRow(layout_label)
@@ -76,6 +96,8 @@ class SettingsDialog(QDialog):
         """Updates the settings ConfigParser object with values from the dialog."""
         self.settings.set('Settings', 'multi_tab_mode', str(self.multi_tab_checkbox.isChecked()).lower())
         self.settings.set('Settings', 'remember_window_size', str(self.remember_size_checkbox.isChecked()).lower())
+        self.settings.set('Settings', 'window_width', str(self.width_spinbox.value()))
+        self.settings.set('Settings', 'window_height', str(self.height_spinbox.value()))
         self.settings.set('Settings', 'argument_columns', str(self.columns_spinbox.value()))
 
 
@@ -100,13 +122,14 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("INI Script Runner")
 
-        if self.remember_window_size:
+        if self.remember_window_size and self.app_settings.has_option('Settings', 'window_width'):
             width = self.app_settings.getint('Settings', 'window_width', fallback=600)
             height = self.app_settings.getint('Settings', 'window_height', fallback=500)
             self.resize(width, height)
         else:
-            # Set a default size if not remembering
-            self.resize(600, 500)
+            width = self.app_settings.getint('Settings', 'window_width', fallback=600)
+            height = self.app_settings.getint('Settings', 'window_height', fallback=500)
+            self.resize(width, height)
 
         # --- State Tracking ---
         self.is_dirty = False  # To track unsaved changes
@@ -445,12 +468,44 @@ class MainWindow(QMainWindow):
 
     def open_settings_dialog(self):
         """Opens the settings dialog to allow user configuration."""
+        # Store old values to check for changes that require action
+        old_multi_tab = self.app_settings.getboolean('Settings', 'multi_tab_mode', fallback=False)
+        old_arg_cols = self.app_settings.getint('Settings', 'argument_columns', fallback=1)
+
         dialog = SettingsDialog(self, settings_parser=self.app_settings)
+
         if dialog.exec():
             dialog.apply_settings()
             self._save_app_settings()
-            QMessageBox.information(self, "Settings Saved",
-                                    "Changes to the UI mode will take effect the next time you start the application.")
+
+            new_multi_tab = self.app_settings.getboolean('Settings', 'multi_tab_mode', fallback=False)
+            new_arg_cols = self.app_settings.getint('Settings', 'argument_columns', fallback=1)
+
+            # Check for restart-required changes
+            if old_multi_tab != new_multi_tab:
+                reply = QMessageBox.question(self, "Restart Required",
+                                             "Changes to the UI mode require a restart to take effect.\n\nRestart now?",
+                                             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                if reply == QMessageBox.StandardButton.Yes:
+                    self.restart_application()
+                return  # Don't check for other changes if we are restarting or user said no
+
+            # Check for UI-reload-required changes
+            if old_arg_cols != new_arg_cols:
+                reply = QMessageBox.question(self, "Reload Required",
+                                             "Changes to the argument layout require the UI to be reloaded.\n\nReload now?",
+                                             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+                if reply == QMessageBox.StandardButton.Yes:
+                    self._load_and_build_ui(self.config_file)
+            else:
+                QMessageBox.information(self, "Settings Saved", "Your settings have been saved.")
+
+    def restart_application(self):
+        """Saves state and restarts the application."""
+        # The close() call will trigger the closeEvent, which saves settings and checks for running processes.
+        # If close() returns True, it means the window was closed successfully.
+        if self.close():
+            QProcess.startDetached(sys.executable, sys.argv)
 
     def _open_file_dialog(self, line_edit_widget: QLineEdit):
         """Opens a file dialog and sets the selected path in the provided QLineEdit."""
