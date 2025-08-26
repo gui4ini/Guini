@@ -53,26 +53,6 @@ class SettingsDialog(QDialog):
         self.remember_size_checkbox.setChecked(self.settings.getboolean('Settings', 'remember_window_size', fallback=True))
         form_layout.addRow(self.remember_size_checkbox)
 
-        # Add width and height spinboxes for fixed size, inside a container
-        size_container = QWidget()
-        size_layout = QHBoxLayout(size_container)
-        size_layout.setContentsMargins(0, 0, 0, 0)
-        self.width_spinbox = QSpinBox()
-        self.width_spinbox.setRange(300, 4000)
-        self.width_spinbox.setValue(self.settings.getint('Settings', 'window_width', fallback=600))
-        self.height_spinbox = QSpinBox()
-        self.height_spinbox.setRange(300, 4000)
-        self.height_spinbox.setValue(self.settings.getint('Settings', 'window_height', fallback=500))
-        size_layout.addWidget(QLabel("Width:"))
-        size_layout.addWidget(self.width_spinbox)
-        size_layout.addWidget(QLabel("Height:"))
-        size_layout.addWidget(self.height_spinbox)
-        form_layout.addRow("Fixed Window Size:", size_container)
-
-        # The fixed size option is only enabled if we are *not* remembering the size
-        self.remember_size_checkbox.toggled.connect(lambda checked: size_container.setDisabled(checked))
-        size_container.setDisabled(self.remember_size_checkbox.isChecked())
-
         layout_label = QLabel("Layout")
         layout_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
         form_layout.addRow(layout_label)
@@ -96,8 +76,6 @@ class SettingsDialog(QDialog):
         """Updates the settings ConfigParser object with values from the dialog."""
         self.settings.set('Settings', 'multi_tab_mode', str(self.multi_tab_checkbox.isChecked()).lower())
         self.settings.set('Settings', 'remember_window_size', str(self.remember_size_checkbox.isChecked()).lower())
-        self.settings.set('Settings', 'window_width', str(self.width_spinbox.value()))
-        self.settings.set('Settings', 'window_height', str(self.height_spinbox.value()))
         self.settings.set('Settings', 'argument_columns', str(self.columns_spinbox.value()))
 
 
@@ -122,14 +100,12 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("INI Script Runner")
 
-        if self.remember_window_size and self.app_settings.has_option('Settings', 'window_width'):
+        if self.remember_window_size:
             width = self.app_settings.getint('Settings', 'window_width', fallback=600)
             height = self.app_settings.getint('Settings', 'window_height', fallback=500)
             self.resize(width, height)
         else:
-            width = self.app_settings.getint('Settings', 'window_width', fallback=600)
-            height = self.app_settings.getint('Settings', 'window_height', fallback=500)
-            self.resize(width, height)
+            self.resize(600, 500)
 
         # --- State Tracking ---
         self.is_dirty = False  # To track unsaved changes
@@ -572,21 +548,28 @@ class MainWindow(QMainWindow):
                 current_row += 1
 
                 if section_name == 'Arguments':
-                    arg_col = 0
-                    for key, value in self.config.items(section_name):
+                    args_list = list(self.config.items(section_name))
+                    if not args_list:
+                        continue
+
+                    num_args = len(args_list)
+                    rows_per_col = (num_args + num_columns - 1) // num_columns
+                    args_base_row = current_row
+
+                    for i, (key, value) in enumerate(args_list):
+                        # Calculate target row and column for column-first layout
+                        target_col = i // rows_per_col
+                        target_row_offset = i % rows_per_col
+
                         label_text = self.config.get('Labels', key, fallback=key)
                         clean_label, type_hint = self._parse_label(label_text)
                         editor, _ = self._create_editor_for_value(value, type_hint=type_hint)
                         label = QLabel(clean_label)
-                        self.config_layout.addWidget(label, current_row, arg_col * 2)
-                        self.config_layout.addWidget(editor, current_row, arg_col * 2 + 1)
+                        self.config_layout.addWidget(label, args_base_row + target_row_offset, target_col * 2)
+                        self.config_layout.addWidget(editor, args_base_row + target_row_offset, target_col * 2 + 1)
                         self.editors[(section_name, key)] = editor
-                        arg_col += 1
-                        if arg_col >= num_columns:
-                            arg_col = 0
-                            current_row += 1
-                    if arg_col != 0:  # Advance row if the last one wasn't full
-                        current_row += 1
+
+                    current_row += rows_per_col
                 else:  # For 'Command' and other sections, use a standard form layout
                     for key, value in self.config.items(section_name):
                         label_text = self.config.get('Labels', key, fallback=key)
