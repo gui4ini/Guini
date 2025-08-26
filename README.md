@@ -240,10 +240,10 @@ arg7 = coef order 4 (Float)
 
 ## FAQ
 
-**Q: Why the name *Guini*?**
+1. **Q: Why the name *Guini*?**
 
-**ANS:** It simply means *GUI for INI*.
+    **ANS:** It simply means *GUI for INI*.
 
-**Q: Why is the logo a guinea pig?**
+1. **Q: Why is the logo a guinea pig?**
 
-**ANS:** It is just because *Guini* sounds line *guinea*.
+    **ANS:** It is just because *Guini* sounds line *guinea*.
