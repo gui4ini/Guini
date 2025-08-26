@@ -21,6 +21,8 @@ from PySide6.QtWidgets import (
     QTabWidget,
     QDialog,
     QDialogButtonBox,
+    QGridLayout,
+    QSpinBox,
     QMessageBox,
 )
 from PySide6.QtGui import QPalette, QColor, QIntValidator, QDoubleValidator, QAction, QKeySequence
@@ -47,6 +49,21 @@ class SettingsDialog(QDialog):
         self.multi_tab_checkbox.setChecked(self.settings.getboolean('Settings', 'multi_tab_mode', fallback=False))
         form_layout.addRow(self.multi_tab_checkbox)
 
+        self.remember_size_checkbox = QCheckBox("Remember window size on exit")
+        self.remember_size_checkbox.setChecked(self.settings.getboolean('Settings', 'remember_window_size', fallback=True))
+        form_layout.addRow(self.remember_size_checkbox)
+
+        layout_label = QLabel("Layout")
+        layout_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        form_layout.addRow(layout_label)
+
+        self.columns_spinbox = QSpinBox()
+        self.columns_spinbox.setMinimum(1)
+        self.columns_spinbox.setMaximum(4)  # A reasonable maximum
+        self.columns_spinbox.setToolTip("Sets the number of columns for the arguments section.\nRequires re-opening the INI file.")
+        self.columns_spinbox.setValue(self.settings.getint('Settings', 'argument_columns', fallback=1))
+        form_layout.addRow("Argument Columns:", self.columns_spinbox)
+
         layout.addLayout(form_layout)
 
         # OK and Cancel buttons
@@ -58,6 +75,8 @@ class SettingsDialog(QDialog):
     def apply_settings(self):
         """Updates the settings ConfigParser object with values from the dialog."""
         self.settings.set('Settings', 'multi_tab_mode', str(self.multi_tab_checkbox.isChecked()).lower())
+        self.settings.set('Settings', 'remember_window_size', str(self.remember_size_checkbox.isChecked()).lower())
+        self.settings.set('Settings', 'argument_columns', str(self.columns_spinbox.value()))
 
 
 class MainWindow(QMainWindow):
@@ -76,10 +95,18 @@ class MainWindow(QMainWindow):
         self._load_app_settings()  # This will create the file if it doesn't exist
 
         self.multi_tab_enabled = self.app_settings.getboolean('Settings', 'multi_tab_mode', fallback=False)
+        self.remember_window_size = self.app_settings.getboolean('Settings', 'remember_window_size', fallback=True)
         # --- End App Settings ---
 
         self.setWindowTitle("INI Script Runner")
-        self.setMinimumSize(600, 500)
+
+        if self.remember_window_size:
+            width = self.app_settings.getint('Settings', 'window_width', fallback=600)
+            height = self.app_settings.getint('Settings', 'window_height', fallback=500)
+            self.resize(width, height)
+        else:
+            # Set a default size if not remembering
+            self.resize(600, 500)
 
         # --- State Tracking ---
         self.is_dirty = False  # To track unsaved changes
@@ -126,9 +153,9 @@ class MainWindow(QMainWindow):
         central_widget.setLayout(self.main_layout)
         self.setCentralWidget(central_widget)
 
-        # Use a QFormLayout for a nice key-value display
-        self.form_layout = QFormLayout()
-        self.main_layout.addLayout(self.form_layout)
+        # Use a QGridLayout to allow for multiple columns
+        self.config_layout = QGridLayout()
+        self.main_layout.addLayout(self.config_layout)
 
         # Add a status bar for feedback *before* we might use it
         self.setStatusBar(QStatusBar(self))
@@ -196,6 +223,12 @@ class MainWindow(QMainWindow):
             if reply == QMessageBox.StandardButton.No:
                 event.ignore()
                 return
+
+        if self.remember_window_size:
+            size = self.size()
+            self.app_settings.set('Settings', 'window_width', str(size.width()))
+            self.app_settings.set('Settings', 'window_height', str(size.height()))
+            self._save_app_settings()
 
         event.accept()
 
@@ -382,6 +415,18 @@ class MainWindow(QMainWindow):
         if not self.app_settings.has_option('Settings', 'multi_tab_mode'):
             self.app_settings.set('Settings', 'multi_tab_mode', 'false')
             made_changes = True
+        if not self.app_settings.has_option('Settings', 'remember_window_size'):
+            self.app_settings.set('Settings', 'remember_window_size', 'true')
+            made_changes = True
+        if not self.app_settings.has_option('Settings', 'window_width'):
+            self.app_settings.set('Settings', 'window_width', '600')
+            made_changes = True
+        if not self.app_settings.has_option('Settings', 'window_height'):
+            self.app_settings.set('Settings', 'window_height', '500')
+            made_changes = True
+        if not self.app_settings.has_option('Settings', 'argument_columns'):
+            self.app_settings.set('Settings', 'argument_columns', '1')
+            made_changes = True
         if not self.app_settings.has_option('Settings', 'last_loaded_ini'):
             default_ini_path = self.script_dir / "default.ini"
             self.app_settings.set('Settings', 'last_loaded_ini', str(default_ini_path.resolve()))
@@ -425,10 +470,10 @@ class MainWindow(QMainWindow):
         if file_path:
             self._load_and_build_ui(pathlib.Path(file_path))
 
-    def _clear_form_layout(self):
-        """Removes all widgets from the form layout."""
-        while self.form_layout.count():
-            item = self.form_layout.takeAt(0)
+    def _clear_config_layout(self):
+        """Removes all widgets from the config layout."""
+        while self.config_layout.count():
+            item = self.config_layout.takeAt(0)
             widget = item.widget()
             if widget is not None:
                 widget.setParent(None)
@@ -444,7 +489,7 @@ class MainWindow(QMainWindow):
 
         self.config_file = file_path  # This is the currently loaded SCRIPT config
         self.setWindowTitle(f"INI Script Runner - {self.config_file.name}")
-        self._clear_form_layout()
+        self._clear_config_layout()
         self.editors.clear()
 
         self.config = configparser.ConfigParser()
@@ -460,20 +505,43 @@ class MainWindow(QMainWindow):
         self._save_app_settings()
         # --- END SAVE ---
 
+        num_columns = self.app_settings.getint('Settings', 'argument_columns', fallback=1)
+        current_row = 0
+
         sections_to_display = ['Command', 'Arguments']
         for section_name in sections_to_display:
             if self.config.has_section(section_name):
                 section_label = QLabel(f"[{section_name}]")
                 section_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
-                self.form_layout.addRow(section_label)
+                self.config_layout.addWidget(section_label, current_row, 0, 1, num_columns * 2)
+                current_row += 1
 
-                for key, value in self.config.items(section_name):
-                    label_text = self.config.get('Labels', key, fallback=key)
-                    clean_label, type_hint = self._parse_label(label_text)
-                    editor, _ = self._create_editor_for_value(value, type_hint=type_hint)
-                    label = QLabel(clean_label)
-                    self.form_layout.addRow(label, editor)
-                    self.editors[(section_name, key)] = editor
+                if section_name == 'Arguments':
+                    arg_col = 0
+                    for key, value in self.config.items(section_name):
+                        label_text = self.config.get('Labels', key, fallback=key)
+                        clean_label, type_hint = self._parse_label(label_text)
+                        editor, _ = self._create_editor_for_value(value, type_hint=type_hint)
+                        label = QLabel(clean_label)
+                        self.config_layout.addWidget(label, current_row, arg_col * 2)
+                        self.config_layout.addWidget(editor, current_row, arg_col * 2 + 1)
+                        self.editors[(section_name, key)] = editor
+                        arg_col += 1
+                        if arg_col >= num_columns:
+                            arg_col = 0
+                            current_row += 1
+                    if arg_col != 0:  # Advance row if the last one wasn't full
+                        current_row += 1
+                else:  # For 'Command' and other sections, use a standard form layout
+                    for key, value in self.config.items(section_name):
+                        label_text = self.config.get('Labels', key, fallback=key)
+                        clean_label, type_hint = self._parse_label(label_text)
+                        editor, _ = self._create_editor_for_value(value, type_hint=type_hint)
+                        label = QLabel(clean_label)
+                        self.config_layout.addWidget(label, current_row, 0)
+                        self.config_layout.addWidget(editor, current_row, 1, 1, num_columns * 2 - 1)
+                        self.editors[(section_name, key)] = editor
+                        current_row += 1
 
         # Final check to ensure the critical command section was loaded
         if not self.config.has_section('Command'):
