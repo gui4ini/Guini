@@ -6,8 +6,8 @@
 
 ## Table of Contents
 
+- [Guini: Graphical User Interface (GUI) for INI files](#guini-graphical-user-interface-gui-for-ini-files)
   - [Table of Contents](#table-of-contents)
-  - [Introduction](#introduction)
   - [Description](#description)
   - [Usage](#usage)
   - [`*.ini` files for Guini](#ini-files-for-guini)
@@ -218,23 +218,22 @@ arg7 = coef order 4 (Float)
 ### TO-DO List
 
 * [ ] Test with multicore scripts
-* [ ] Test in a bootstrap mode: add guini inside the  `if __name__ == "__main__":` part, and the the script run it from within. 
+* [ ] Test in a bootstrap mode: add guini inside the  `if __name__ == "__main__":` part, and the the script run it from within.
 
 ### List of Current Features
 
 * [x] Select the `*.ini` file to be loaded.
 * [x] Reconize `filepath` as an option to have `File->Open`
+* [x] (Maybe) a dedicated section for itself inside the `*.ini` file with a few option. Suggestions:
+  * 2 columns
+  * detached output display
+  * font size for display
+* [x] (Maybe) use `guini.ini` to save parameters of guini only.
+* [x] Run multiple instances of the python script
 
 ### List of Features to add
 
 * [ ] Installation using `pip`
-* [ ] Run multiple instances of the python script
-* [ ] Two colunns when the GUI is too tall.
-* [ ] (Maybe) a dedicated section for itself inside the `*.ini` file with a few option. Suggestions:
-  * 2 columns
-  * detached output display
-  * font size for display
-* [ ] (Maybe) use `guini.ini` to save parameters of guini only.
 * [ ] Recognize list of numbers
 * [ ] Reconize list of Files
 * [ ] Add buttons to Add/Remove/Edit keys, which will then be added to the `*.ini` file.
