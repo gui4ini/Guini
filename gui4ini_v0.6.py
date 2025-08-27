@@ -1,9 +1,10 @@
 import sys
 import configparser
 import pathlib
+import resources_rc  # Import the compiled resources
 import re
 from datetime import datetime
-from PySide6.QtCore import QProcess
+from PySide6.QtCore import QProcess, Qt
 from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -27,7 +28,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 from PySide6.QtGui import (
-    QPalette, QColor, QIntValidator, QDoubleValidator, QAction, QKeySequence, QCloseEvent, QIcon
+    QPalette, QColor, QIntValidator, QDoubleValidator, QAction, QKeySequence, QCloseEvent, QIcon, QPixmap
 )
 
 
@@ -67,11 +68,6 @@ class SettingsDialog(QDialog):
         self.multi_tab_checkbox.setChecked(self.settings.getboolean('Settings', 'multi_tab_mode', fallback=False))
         form_layout.addRow(self.multi_tab_checkbox)
 
-        self.show_icons_checkbox = QCheckBox("Show icons on buttons and menus")
-        self.show_icons_checkbox.setToolTip("Toggles the visibility of icons on the toolbar and in menus.")
-        self.show_icons_checkbox.setChecked(self.settings.getboolean('Settings', 'show_icons', fallback=True))
-        form_layout.addRow(self.show_icons_checkbox)
-
         self.remember_size_checkbox = QCheckBox("Remember window size on exit")
         self.remember_size_checkbox.setChecked(self.settings.getboolean('Settings', 'remember_window_size', fallback=True))
         form_layout.addRow(self.remember_size_checkbox)
@@ -99,7 +95,6 @@ class SettingsDialog(QDialog):
         """Updates the settings ConfigParser object with values from the dialog."""
         self.settings.set('Settings', 'multi_tab_mode', str(self.multi_tab_checkbox.isChecked()).lower())
         self.settings.set('Settings', 'remember_window_size', str(self.remember_size_checkbox.isChecked()).lower())
-        self.settings.set('Settings', 'show_icons', str(self.show_icons_checkbox.isChecked()).lower())
         self.settings.set('Settings', 'argument_columns', str(self.columns_spinbox.value()))
 
 
@@ -113,6 +108,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
+        self.setWindowIcon(QIcon(":/logo/app_icon"))
         self.config_file: pathlib.Path | None = None
         self.new_tab_button: QPushButton | None = None
 
@@ -124,7 +120,6 @@ class MainWindow(QMainWindow):
 
         self.multi_tab_enabled = self.app_settings.getboolean(self.SETTINGS_SECTION, 'multi_tab_mode', fallback=False)
         self.remember_window_size = self.app_settings.getboolean(self.SETTINGS_SECTION, 'remember_window_size', fallback=True)
-        self.show_icons = self.app_settings.getboolean(self.SETTINGS_SECTION, 'show_icons', fallback=True)
         # --- End App Settings ---
 
         self.setWindowTitle("INI Script Runner")
@@ -231,10 +226,6 @@ class MainWindow(QMainWindow):
         self.tab_widget.currentChanged.connect(self.update_button_states)
         self.main_layout.setStretchFactor(self.tab_widget, 1)
         self.main_layout.addWidget(self.tab_widget)
-
-        # Define and apply icons now that all buttons and actions have been created.
-        self._define_icon_map()
-        self._apply_icons()
 
         # --- DETERMINE INITIAL SCRIPT CONFIG FILE ---
         # This is the file with [Command], [Arguments], etc.
@@ -348,33 +339,6 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(self.clear_output_action)
         edit_menu.addSeparator()
         edit_menu.addAction(self.settings_action)
-
-    def _define_icon_map(self):
-        """Defines the mapping from widgets to their standard icon names."""
-        self.icon_map = {
-            # Actions
-            self.open_action: "document-open",
-            self.save_action: "document-save",
-            self.reload_action: "view-refresh",
-            self.save_output_action: "document-save-as",
-            self.settings_action: "preferences-system",
-            self.clear_output_action: "edit-clear",
-            # Buttons
-            self.run_button: "media-playback-start",
-            self.stop_button: "media-playback-stop",
-            self.save_button: "document-save",
-            self.reload_button: "view-refresh",
-            self.clear_button: "edit-clear",
-            self.settings_button: "preferences-system",
-        }
-
-    def _apply_icons(self):
-        """Applies or removes icons from all widgets based on the current setting."""
-        for widget, icon_name in self.icon_map.items():
-            if self.show_icons:
-                widget.setIcon(QIcon.fromTheme(icon_name))
-            else:
-                widget.setIcon(QIcon())  # Set an empty icon to remove it
 
     def _prompt_to_save_if_dirty(self) -> bool:
         """Checks for unsaved changes and prompts the user. Returns False if action is cancelled."""
@@ -597,9 +561,6 @@ class MainWindow(QMainWindow):
         if not self.app_settings.has_option(self.SETTINGS_SECTION, 'argument_columns'):
             self.app_settings.set(self.SETTINGS_SECTION, 'argument_columns', '1')
             made_changes = True
-        if not self.app_settings.has_option(self.SETTINGS_SECTION, 'show_icons'):
-            self.app_settings.set(self.SETTINGS_SECTION, 'show_icons', 'true')
-            made_changes = True
         if not self.app_settings.has_option(self.SETTINGS_SECTION, 'last_loaded_ini'):
             default_ini_path = self.script_dir / "default.ini"
             self.app_settings.set(self.SETTINGS_SECTION, 'last_loaded_ini', str(default_ini_path.resolve()))
@@ -621,7 +582,6 @@ class MainWindow(QMainWindow):
         # Store old values to check for changes that require action
         old_multi_tab = self.app_settings.getboolean(self.SETTINGS_SECTION, 'multi_tab_mode', fallback=False)
         old_arg_cols = self.app_settings.getint(self.SETTINGS_SECTION, 'argument_columns', fallback=1)
-        old_show_icons = self.app_settings.getboolean(self.SETTINGS_SECTION, 'show_icons', fallback=True)
 
         dialog = SettingsDialog(self, settings_parser=self.app_settings)
 
@@ -631,12 +591,6 @@ class MainWindow(QMainWindow):
 
             new_multi_tab = self.app_settings.getboolean(self.SETTINGS_SECTION, 'multi_tab_mode', fallback=False)
             new_arg_cols = self.app_settings.getint(self.SETTINGS_SECTION, 'argument_columns', fallback=1)
-            new_show_icons = self.app_settings.getboolean(self.SETTINGS_SECTION, 'show_icons', fallback=True)
-
-            # Update icon visibility immediately if it changed
-            if old_show_icons != new_show_icons:
-                self.show_icons = new_show_icons
-                self._apply_icons()
 
             # Check for restart-required changes
             if old_multi_tab != new_multi_tab:
@@ -718,8 +672,25 @@ class MainWindow(QMainWindow):
             editor, _ = self._create_editor_for_value(key, value, type_hint=type_hint)
             label = QLabel(clean_label)
             self.config_layout.addWidget(label, current_row, 0)
-            self.config_layout.addWidget(editor, current_row, 1, 1, num_columns * 2 - 1)
-            self.editors[('Command', key)] = editor
+
+            if key == 'script_file_name':
+                # Create a container widget to hold the editor and the logo
+                container = QWidget()
+                h_layout = QHBoxLayout(container)
+                h_layout.setContentsMargins(0, 0, 0, 0)
+                h_layout.addWidget(editor)  # The FileNameWidget
+
+                logo_label = QLabel()
+                pixmap = QPixmap(":/logo/app_icon")
+                logo_label.setPixmap(pixmap.scaledToHeight(56, Qt.TransformationMode.SmoothTransformation))
+                logo_label.setToolTip("Guini - GUI for INI")
+                h_layout.addWidget(logo_label)
+
+                self.config_layout.addWidget(container, current_row, 1, 1, num_columns * 2 - 1)
+                self.editors[('Command', key)] = editor  # Still store the original editor for value retrieval
+            else:
+                self.config_layout.addWidget(editor, current_row, 1, 1, num_columns * 2 - 1)
+                self.editors[('Command', key)] = editor
             current_row += 1
         return current_row
 
