@@ -4,9 +4,12 @@
     <img src="docs/imgs/Guini - Logo.png" height="400">
 </p>
 
+## Current Stable Version: *v0.5*
+
 ## Table of Contents
 
 - [Guini: Graphical User Interface (GUI) for INI files](#guini-graphical-user-interface-gui-for-ini-files)
+  - [Current Stable Version: *v0.5*](#current-stable-version-v05)
   - [Table of Contents](#table-of-contents)
   - [Description](#description)
   - [Usage](#usage)
@@ -54,11 +57,13 @@ arg3 = Third Argument
 arg4 = Fourth Argument (Boolean)
 ```
 
-will generate the following GUI.
+will generate the following GUI .
 
 <p align="center">
-    <img src="docs/imgs/Screenshot v0p3.png" height="500">
+    <img src="docs/imgs/Screenshot v0p3.png" alt="Screenshot v0p3" height="500">
 </p>
+
+* **Note**: *Screenshot of version 0.3. There will be differences on newer versions, but one can get the idea.*
 
 When the user presses the `Run` button, the following command will be run:
 
@@ -213,11 +218,10 @@ arg7 = coef order 4 (Float)
 
 ## Future developments
 
-*(Developers Area)*
 
 ### TO-DO List
 
-* [ ] Test with multicore scripts
+* [x] Test with multicore scripts
 * [ ] Test in a bootstrap mode: add guini inside the  `if __name__ == "__main__":` part, and the the script run it from within.
 
 ### List of Current Features
@@ -230,9 +234,14 @@ arg7 = coef order 4 (Float)
   * font size for display
 * [x] (Maybe) use `guini.ini` to save parameters of guini only.
 * [x] Run multiple instances of the python script
+* [x] Add option to reload `*.ini`
 
 ### List of Features to add
 
+* [ ] Use `pytest` and Github actions
+* [ ] possibility to run in the background with pythonw
+* [ ] Update Screenshots for v0.5
+* [ ] Add tool tips for variable type of arguments
 * [ ] Installation using `pip`
 * [ ] Recognize list of numbers
 * [ ] Reconize list of Files
