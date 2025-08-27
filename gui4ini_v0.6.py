@@ -108,7 +108,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowIcon(QIcon(":/logo/app_icon"))
+        self.setWindowIcon(QIcon(":/logo/app_icon"))  # Use the dedicated icon for the window
         self.config_file: pathlib.Path | None = None
         self.new_tab_button: QPushButton | None = None
 
@@ -666,6 +666,16 @@ class MainWindow(QMainWindow):
         """Builds the UI for the [Command] section."""
         num_columns = self.app_settings.getint(self.SETTINGS_SECTION, 'argument_columns', fallback=1)
         current_row = start_row
+
+        # Add the logo as a banner at the top of the command section
+        logo_label = QLabel()
+        pixmap = QPixmap(":/logo/app_banner")  # Use the detailed banner logo
+        logo_label.setPixmap(pixmap.scaledToHeight(84, Qt.TransformationMode.SmoothTransformation))
+        logo_label.setToolTip("Guini - GUI for INI")
+        logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.config_layout.addWidget(logo_label, current_row, 0, 1, num_columns * 2)
+        current_row += 1
+
         for key, value in section_items:
             label_text = self.config.get('Labels', key, fallback=key)
             clean_label, type_hint = self._parse_label(label_text)
@@ -673,24 +683,8 @@ class MainWindow(QMainWindow):
             label = QLabel(clean_label)
             self.config_layout.addWidget(label, current_row, 0)
 
-            if key == 'script_file_name':
-                # Create a container widget to hold the editor and the logo
-                container = QWidget()
-                h_layout = QHBoxLayout(container)
-                h_layout.setContentsMargins(0, 0, 0, 0)
-                h_layout.addWidget(editor)  # The FileNameWidget
-
-                logo_label = QLabel()
-                pixmap = QPixmap(":/logo/app_icon")
-                logo_label.setPixmap(pixmap.scaledToHeight(100, Qt.TransformationMode.SmoothTransformation))
-                logo_label.setToolTip("Guini - GUI for INI")
-                h_layout.addWidget(logo_label)
-
-                self.config_layout.addWidget(container, current_row, 1, 1, num_columns * 2 - 1)
-                self.editors[('Command', key)] = editor  # Still store the original editor for value retrieval
-            else:
-                self.config_layout.addWidget(editor, current_row, 1, 1, num_columns * 2 - 1)
-                self.editors[('Command', key)] = editor
+            self.config_layout.addWidget(editor, current_row, 1, 1, num_columns * 2 - 1)
+            self.editors[('Command', key)] = editor
             current_row += 1
         return current_row
 
@@ -760,11 +754,6 @@ class MainWindow(QMainWindow):
         sections_to_display = ['Command', 'Arguments']
         for section_name in sections_to_display:
             if self.config.has_section(section_name):
-                section_label = QLabel(f"[{section_name}]")
-                section_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
-                self.config_layout.addWidget(section_label, current_row, 0, 1, num_columns * 2)
-                current_row += 1
-
                 if section_name == 'Arguments':
                     items = list(self.config.items(section_name))
                     current_row = self._build_arguments_section_ui(items, current_row)
