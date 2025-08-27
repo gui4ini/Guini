@@ -36,34 +36,45 @@ It does two main things:
 1. Create a GUI from a `*.ini` file with arbiratry number of arguments. It dynamically adjust window size and argument types for better user experience.
 2. Run a *user-defined* python script with the arguments of the GUI. The output of the scripts is shown in the *Output* part of the GUI.
 
-For instance, the `*.ini` file below
+For instance following GUI (v0.6)
+
+<p align="center">
+    <img src="docs/imgs/Screenshot v0p6.png" alt="Screenshot v0p6" height="500">
+</p>
+
+will be generated from the `*.ini` file below
 
 ```ini
 [Command]
-script_file_name = argument_analyzer.py
+script_file_name = C:/Users/wcgri/workspace/Guini/scripts/argument_analyzer.py
 
 [Arguments]
 arg1 = first_argument
-arg2 = 123
-arg3 = another_argument
+arg2 = 2.00
+arg3 = false
 arg4 = true
-arg5 = C:\path\to\your\file.txt
+arg5 = number_5
+arg6 = Sixth
+arg7 = 7000.00
+arg8 = 8e-6
+arg9 = C:\path\to\your\file.txt
+arg10 = C:\path\to\another_file.txt
 
 [Labels]
-script_file_name = Script File (filename)
-arg1 = First Argument (String)
-arg2 = Second Argument (Integer)
+script_file_name = Script File
+arg1 = First Argument
+arg2 = Second Argument
 arg3 = Third Argument
-arg4 = Fourth Argument (Boolean)
+arg4 = Fourth Argument
+arg5 = Fifth Argument
+arg6 = Sixth Argument
+arg7 = Seventh Argument
+arg8 = Eighth Argument
+arg9 = Ninth Argument (filename)
+arg10 = Tenth Argument (filename)
 ```
 
-will generate the following GUI .
-
-<p align="center">
-    <img src="docs/imgs/Screenshot v0p3.png" alt="Screenshot v0p3" height="500">
-</p>
-
-* **Note**: *Screenshot of version 0.3. There will be differences on newer versions, but one can get the idea.*
+* **Note**: *Screenshot of version 0.6. There will be differences on newer versions, but one can get the idea.*
 
 When the user presses the `Run` button, the following command will be run:
 
