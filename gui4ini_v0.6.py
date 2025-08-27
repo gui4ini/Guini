@@ -682,7 +682,7 @@ class MainWindow(QMainWindow):
 
                 logo_label = QLabel()
                 pixmap = QPixmap(":/logo/app_icon")
-                logo_label.setPixmap(pixmap.scaledToHeight(56, Qt.TransformationMode.SmoothTransformation))
+                logo_label.setPixmap(pixmap.scaledToHeight(100, Qt.TransformationMode.SmoothTransformation))
                 logo_label.setToolTip("Guini - GUI for INI")
                 h_layout.addWidget(logo_label)
 
