@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QGridLayout,
+    QFrame,
     QSpinBox,
     QMessageBox,
 )
@@ -142,16 +143,23 @@ class MainWindow(QMainWindow):
         self.open_action.setToolTip("Open a different INI configuration file.")
         self.open_action.setShortcut(QKeySequence.StandardKey.Open)
         self.open_action.triggered.connect(self._prompt_open_file)
-        self.save_action = QAction("&Save Changes", self)
+        self.save_action = QAction("&Save INI", self)
         self.save_action.setToolTip("Save the current configuration values to the INI file.")
         self.save_action.setShortcut(QKeySequence.StandardKey.Save)
         self.save_action.triggered.connect(self.save_config)
+        self.reload_action = QAction("&Reload INI File", self)
+        self.reload_action.setToolTip("Reload the current INI file from disk (F5).")
+        self.reload_action.setShortcut(QKeySequence.StandardKey.Refresh)  # F5
+        self.reload_action.triggered.connect(self._reload_current_file)
+        self.reload_action.setEnabled(False)  # Disabled until a file is loaded
         self.save_output_action = QAction("Save &Output As...", self)
         self.save_output_action.setToolTip("Save the contents of the output window to a text file.")
         self.save_output_action.setShortcut(QKeySequence.StandardKey.SaveAs)
         self.save_output_action.triggered.connect(self.save_output)
         file_menu.addAction(self.open_action)
         file_menu.addAction(self.save_action)
+        file_menu.addAction(self.reload_action)
+        file_menu.addSeparator()
         file_menu.addAction(self.save_output_action)
 
         edit_menu = self.menuBar().addMenu("&Edit")
@@ -191,7 +199,47 @@ class MainWindow(QMainWindow):
         self.stop_button.setEnabled(False)
         button_layout.addWidget(self.run_button)
         button_layout.addWidget(self.stop_button)
+
+        # Add a separator for visual grouping
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.VLine)
+        separator.setFrameShadow(QFrame.Shadow.Plain)
+        separator.setStyleSheet("border-left: 1px solid #e0e0e0; margin-left: 2px; margin-right: 2px;")
+        button_layout.addWidget(separator)
+
+        # Add Save and Reload buttons
+        self.save_button = QPushButton("Save INI")
+        self.save_button.setToolTip("Save the current configuration values (Ctrl+S).")
+        self.save_button.clicked.connect(self.save_config)
+        self.save_button.setEnabled(False)  # Enabled when dirty
+
+        self.reload_button = QPushButton("Reload INI")
+        self.reload_button.setToolTip("Reload the current INI file from disk (F5).")
+        self.reload_button.clicked.connect(self._reload_current_file)
+        self.reload_button.setEnabled(False)  # Enabled when a file is loaded
+
+        button_layout.addWidget(self.save_button)
+        button_layout.addWidget(self.reload_button)
+
+        # Add another separator
+        separator2 = QFrame()
+        separator2.setFrameShape(QFrame.Shape.VLine)
+        separator2.setFrameShadow(QFrame.Shadow.Plain)
+        separator2.setStyleSheet("border-left: 1px solid #e0e0e0; margin-left: 2px; margin-right: 2px;")
+        button_layout.addWidget(separator2)
+
+        self.clear_button = QPushButton("Clear Output")
+        self.clear_button.setToolTip("Clear all text from the output window (Ctrl+L).")
+        self.clear_button.clicked.connect(self.clear_output)
+        button_layout.addWidget(self.clear_button)
+
         button_layout.addStretch()
+
+        # Add Settings button
+        self.settings_button = QPushButton("Settings")
+        self.settings_button.setToolTip("Open application settings.")
+        self.settings_button.clicked.connect(self.open_settings_dialog)
+        button_layout.addWidget(self.settings_button)
 
         if self.multi_tab_enabled:
             self.new_tab_button = QPushButton("New Output Tab")
@@ -269,6 +317,12 @@ class MainWindow(QMainWindow):
             self.setWindowTitle(title + "*")
         elif not is_dirty and title.endswith("*"):
             self.setWindowTitle(title[:-1])
+
+        # Also update the save button's state.
+        # We check for the attribute in case this is called before the button is created,
+        # though in the current flow it will exist.
+        if hasattr(self, 'save_button'):
+            self.save_button.setEnabled(is_dirty)
 
     def _prompt_to_save_if_dirty(self) -> bool:
         """Checks for unsaved changes and prompts the user. Returns False if action is cancelled."""
@@ -553,6 +607,18 @@ class MainWindow(QMainWindow):
             else:
                 QMessageBox.critical(self, "Restart Failed", "Could not determine the Python executable path to restart.")
 
+    def _reload_current_file(self):
+        """Reloads the current INI file, prompting to save if dirty."""
+        if not self.config_file:
+            self.statusBar().showMessage("No INI file is currently loaded.", 3000)
+            return
+
+        if not self._prompt_to_save_if_dirty():
+            return  # User cancelled
+
+        self.statusBar().showMessage(f"Reloading {self.config_file.name}...", 2000)
+        self._load_and_build_ui(self.config_file)
+
     def _open_file_dialog(self, line_edit_widget: QLineEdit):
         """Opens a file dialog and sets the selected path in the provided QLineEdit."""
         # We use self.script_dir to give the dialog a sensible starting place
@@ -627,6 +693,8 @@ class MainWindow(QMainWindow):
             return
 
         self.config_file = file_path  #  This is the currently loaded SCRIPT config
+        self.reload_button.setEnabled(True)
+        self.reload_action.setEnabled(True)
         self.setWindowTitle(f"INI Script Runner - {self.config_file.name}")
         self._clear_config_layout()
         self.editors.clear()
