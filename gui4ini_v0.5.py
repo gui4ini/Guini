@@ -214,7 +214,13 @@ class MainWindow(QMainWindow):
         initial_script_config_path = None
 
         if initial_script_config_path_str:
-            path_candidate = pathlib.Path(initial_script_config_path_str)
+            path_obj = pathlib.Path(initial_script_config_path_str)
+            if path_obj.is_absolute():
+                path_candidate = path_obj
+            else:
+                # If relative, resolve it against the application's directory.
+                path_candidate = self.script_dir / path_obj
+
             if path_candidate.exists():
                 initial_script_config_path = path_candidate
 
@@ -375,11 +381,14 @@ class MainWindow(QMainWindow):
         exit_code = process.exitCode()
         exit_status = process.exitStatus()
 
-        self._log_message(widget, f"\n--- Finished (Elapsed: {elapsed_str}) ---", bold=True)
+        finish_time_str = end_time.strftime("%H:%M:%S")
+        self._log_message(widget, f"\n--- Finished at {finish_time_str} (Elapsed: {elapsed_str}) ---", bold=True)
         if exit_status == QProcess.ExitStatus.CrashExit:
             self._log_message(widget, "! Process was terminated or crashed.", color="red", bold=True)
         else:
-            self._log_message(widget, f"--- Process finished with exit code {exit_code} ---", bold=True)
+            message = f"--- Process finished with exit code {exit_code} ---"
+            color = "green" if exit_code == 0 else None
+            self._log_message(widget, message, color=color, bold=True)
 
         # Update tab title
         index = self.tab_widget.indexOf(widget)
@@ -387,6 +396,7 @@ class MainWindow(QMainWindow):
             tab_text = self.tab_widget.tabText(index)
             if not tab_text.startswith("[Finished]"):
                 self.tab_widget.setTabText(index, f"[Finished] {tab_text}")
+        widget.append("")  # Add a blank line for spacing
 
         # The process is finished, so it's no longer "running" in this tab.
         if widget in self.tab_process_map:
@@ -630,7 +640,16 @@ class MainWindow(QMainWindow):
             return
 
         # --- SAVE THIS PATH AS THE LAST LOADED INI ---
-        self.app_settings.set(self.SETTINGS_SECTION, 'last_loaded_ini', str(self.config_file.resolve()))
+        try:
+            # Store path relative to the script directory for portability
+            relative_path = self.config_file.relative_to(self.script_dir)
+            path_to_save = str(relative_path)
+        except ValueError:
+            # This occurs if the file is on a different drive (on Windows).
+            # In this case, fall back to an absolute path.
+            path_to_save = str(self.config_file.resolve())
+
+        self.app_settings.set(self.SETTINGS_SECTION, 'last_loaded_ini', path_to_save)
         self._save_app_settings()
         # --- END SAVE ---
 
@@ -713,10 +732,13 @@ class MainWindow(QMainWindow):
 
     def _parse_label(self, label_text: str) -> tuple[str, str | None]:
         """Parses a label string to extract a clean label and an optional type hint."""
-        match = re.match(r'(.+?)\s*\((.+?)\)', label_text)
+        # Only match specific, known type hints. This allows other parenthetical text in the label.
+        type_pattern = r"\s*\((integer|float|boolean|filename)\)\s*$"
+        match = re.search(type_pattern, label_text, re.IGNORECASE)
         if match:
-            clean_label = match.group(1).strip()
-            type_hint = match.group(2).strip().lower()
+            # The clean label is everything before the matched pattern.
+            clean_label = label_text[:match.start()].strip()
+            type_hint = match.group(1).strip().lower()
             return clean_label, type_hint
         return label_text, None
 
@@ -793,11 +815,13 @@ class MainWindow(QMainWindow):
         if not script_path:
             return  # Error was already shown
 
-        # Clear the tab and log the run command
-        self._set_initial_output_info(current_widget)
+        # Log a separator for the new run instead of clearing the output
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self._log_message(current_widget, "\n" + "="*60, bold=True)
+        self._log_message(current_widget, f"--- Starting new run at: {now} ---", bold=True)
         quoted_args = [f'"{arg}"' if ' ' in arg else arg for arg in args]
         command_str = f"python \"{script_path}\" {' '.join(quoted_args)}"
-        self._log_message(current_widget, f"\n$ {command_str}\n", color="#666666")
+        self._log_message(current_widget, f"$ {command_str}\n", color="#666666")
 
         process = QProcess(self)
         self.tab_process_map[current_widget] = process
