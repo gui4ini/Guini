@@ -12,7 +12,7 @@ if __name__ == "__main__":
         # Get the directory where this launcher script is located
         script_dir = pathlib.Path(__file__).parent.resolve()
         # Construct the full path to the target application script
-        target_script_path = script_dir / "gui4ini_v0.5.py"
+        target_script_path = script_dir / "Past Versions\gui4ini_v0.5.py"
 
         # Check if the target script actually exists before trying to run it
         if not target_script_path.exists():
