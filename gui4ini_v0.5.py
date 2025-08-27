@@ -27,7 +27,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 from PySide6.QtGui import (
-    QPalette, QColor, QIntValidator, QDoubleValidator, QAction, QKeySequence, QCloseEvent
+    QPalette, QColor, QIntValidator, QDoubleValidator, QAction, QKeySequence, QCloseEvent, QIcon
 )
 
 
@@ -67,6 +67,11 @@ class SettingsDialog(QDialog):
         self.multi_tab_checkbox.setChecked(self.settings.getboolean('Settings', 'multi_tab_mode', fallback=False))
         form_layout.addRow(self.multi_tab_checkbox)
 
+        self.show_icons_checkbox = QCheckBox("Show icons on buttons and menus")
+        self.show_icons_checkbox.setToolTip("Toggles the visibility of icons on the toolbar and in menus.")
+        self.show_icons_checkbox.setChecked(self.settings.getboolean('Settings', 'show_icons', fallback=True))
+        form_layout.addRow(self.show_icons_checkbox)
+
         self.remember_size_checkbox = QCheckBox("Remember window size on exit")
         self.remember_size_checkbox.setChecked(self.settings.getboolean('Settings', 'remember_window_size', fallback=True))
         form_layout.addRow(self.remember_size_checkbox)
@@ -94,6 +99,7 @@ class SettingsDialog(QDialog):
         """Updates the settings ConfigParser object with values from the dialog."""
         self.settings.set('Settings', 'multi_tab_mode', str(self.multi_tab_checkbox.isChecked()).lower())
         self.settings.set('Settings', 'remember_window_size', str(self.remember_size_checkbox.isChecked()).lower())
+        self.settings.set('Settings', 'show_icons', str(self.show_icons_checkbox.isChecked()).lower())
         self.settings.set('Settings', 'argument_columns', str(self.columns_spinbox.value()))
 
 
@@ -118,6 +124,7 @@ class MainWindow(QMainWindow):
 
         self.multi_tab_enabled = self.app_settings.getboolean(self.SETTINGS_SECTION, 'multi_tab_mode', fallback=False)
         self.remember_window_size = self.app_settings.getboolean(self.SETTINGS_SECTION, 'remember_window_size', fallback=True)
+        self.show_icons = self.app_settings.getboolean(self.SETTINGS_SECTION, 'show_icons', fallback=True)
         # --- End App Settings ---
 
         self.setWindowTitle("INI Script Runner")
@@ -137,49 +144,17 @@ class MainWindow(QMainWindow):
         self.tab_process_map = {}
         # Counter to give new tabs unique names
         self.tab_counter = 0
-        # --- Menu Bar ---
-        file_menu = self.menuBar().addMenu("&File")
-        self.open_action = QAction("&Open INI File...", self)
-        self.open_action.setToolTip("Open a different INI configuration file.")
-        self.open_action.setShortcut(QKeySequence.StandardKey.Open)
-        self.open_action.triggered.connect(self._prompt_open_file)
-        self.save_action = QAction("&Save INI", self)
-        self.save_action.setToolTip("Save the current configuration values to the INI file.")
-        self.save_action.setShortcut(QKeySequence.StandardKey.Save)
-        self.save_action.triggered.connect(self.save_config)
-        self.reload_action = QAction("&Reload INI File", self)
-        self.reload_action.setToolTip("Reload the current INI file from disk (F5).")
-        self.reload_action.setShortcut(QKeySequence.StandardKey.Refresh)  # F5
-        self.reload_action.triggered.connect(self._reload_current_file)
-        self.reload_action.setEnabled(False)  # Disabled until a file is loaded
-        self.save_output_action = QAction("Save &Output As...", self)
-        self.save_output_action.setToolTip("Save the contents of the output window to a text file.")
-        self.save_output_action.setShortcut(QKeySequence.StandardKey.SaveAs)
-        self.save_output_action.triggered.connect(self.save_output)
-        file_menu.addAction(self.open_action)
-        file_menu.addAction(self.save_action)
-        file_menu.addAction(self.reload_action)
-        file_menu.addSeparator()
-        file_menu.addAction(self.save_output_action)
 
-        edit_menu = self.menuBar().addMenu("&Edit")
-        self.clear_output_action = QAction("&Clear Output", self)
-        self.clear_output_action.setToolTip("Clear all text from the output window.")
-        self.clear_output_action.setShortcut("Ctrl+L")
-        self.clear_output_action.triggered.connect(self.clear_output)
-        self.settings_action = QAction("&Settings...", self)
-        self.settings_action.triggered.connect(self.open_settings_dialog)
-        edit_menu.addAction(self.clear_output_action)
-        edit_menu.addSeparator()
-        edit_menu.addAction(self.settings_action)
+        self._create_actions()
+        self._create_menus()
 
         self.config = configparser.ConfigParser()
 
         # Main layout and the container widget
         self.main_layout = QVBoxLayout()
-        central_widget = QWidget()
-        central_widget.setLayout(self.main_layout)
-        self.setCentralWidget(central_widget)
+        self.central_widget = QWidget()
+        self.central_widget.setLayout(self.main_layout)
+        self.setCentralWidget(self.central_widget)
 
         # Use a QGridLayout to allow for multiple columns
         self.config_layout = QGridLayout()
@@ -254,7 +229,12 @@ class MainWindow(QMainWindow):
         self.tab_widget.setTabsClosable(self.multi_tab_enabled)
         self.tab_widget.tabCloseRequested.connect(self.close_tab)
         self.tab_widget.currentChanged.connect(self.update_button_states)
+        self.main_layout.setStretchFactor(self.tab_widget, 1)
         self.main_layout.addWidget(self.tab_widget)
+
+        # Define and apply icons now that all buttons and actions have been created.
+        self._define_icon_map()
+        self._apply_icons()
 
         # --- DETERMINE INITIAL SCRIPT CONFIG FILE ---
         # This is the file with [Command], [Arguments], etc.
@@ -323,6 +303,78 @@ class MainWindow(QMainWindow):
         # though in the current flow it will exist.
         if hasattr(self, 'save_button'):
             self.save_button.setEnabled(is_dirty)
+
+    def _create_actions(self):
+        """Creates all the QAction objects for menus and toolbars."""
+        self.open_action = QAction("&Open INI File...", self)
+        self.open_action.setToolTip("Open a different INI configuration file.")
+        self.open_action.setShortcut(QKeySequence.StandardKey.Open)
+        self.open_action.triggered.connect(self._prompt_open_file)
+
+        self.save_action = QAction("&Save INI", self)
+        self.save_action.setToolTip("Save the current configuration values to the INI file.")
+        self.save_action.setShortcut(QKeySequence.StandardKey.Save)
+        self.save_action.triggered.connect(self.save_config)
+
+        self.reload_action = QAction("&Reload INI File", self)
+        self.reload_action.setToolTip("Reload the current INI file from disk (F5).")
+        self.reload_action.setShortcut(QKeySequence.StandardKey.Refresh)  # F5
+        self.reload_action.triggered.connect(self._reload_current_file)
+        self.reload_action.setEnabled(False)  # Disabled until a file is loaded
+
+        self.save_output_action = QAction("Save &Output As...", self)
+        self.save_output_action.setToolTip("Save the contents of the output window to a text file.")
+        self.save_output_action.setShortcut(QKeySequence.StandardKey.SaveAs)
+        self.save_output_action.triggered.connect(self.save_output)
+
+        self.clear_output_action = QAction("&Clear Output", self)
+        self.clear_output_action.setToolTip("Clear all text from the output window.")
+        self.clear_output_action.setShortcut("Ctrl+L")
+        self.clear_output_action.triggered.connect(self.clear_output)
+
+        self.settings_action = QAction("&Settings...", self)
+        self.settings_action.triggered.connect(self.open_settings_dialog)
+
+    def _create_menus(self):
+        """Creates the main menu bar."""
+        file_menu = self.menuBar().addMenu("&File")
+        file_menu.addAction(self.open_action)
+        file_menu.addAction(self.save_action)
+        file_menu.addAction(self.reload_action)
+        file_menu.addSeparator()
+        file_menu.addAction(self.save_output_action)
+
+        edit_menu = self.menuBar().addMenu("&Edit")
+        edit_menu.addAction(self.clear_output_action)
+        edit_menu.addSeparator()
+        edit_menu.addAction(self.settings_action)
+
+    def _define_icon_map(self):
+        """Defines the mapping from widgets to their standard icon names."""
+        self.icon_map = {
+            # Actions
+            self.open_action: "document-open",
+            self.save_action: "document-save",
+            self.reload_action: "view-refresh",
+            self.save_output_action: "document-save-as",
+            self.settings_action: "preferences-system",
+            self.clear_output_action: "edit-clear",
+            # Buttons
+            self.run_button: "media-playback-start",
+            self.stop_button: "media-playback-stop",
+            self.save_button: "document-save",
+            self.reload_button: "view-refresh",
+            self.clear_button: "edit-clear",
+            self.settings_button: "preferences-system",
+        }
+
+    def _apply_icons(self):
+        """Applies or removes icons from all widgets based on the current setting."""
+        for widget, icon_name in self.icon_map.items():
+            if self.show_icons:
+                widget.setIcon(QIcon.fromTheme(icon_name))
+            else:
+                widget.setIcon(QIcon())  # Set an empty icon to remove it
 
     def _prompt_to_save_if_dirty(self) -> bool:
         """Checks for unsaved changes and prompts the user. Returns False if action is cancelled."""
@@ -545,6 +597,9 @@ class MainWindow(QMainWindow):
         if not self.app_settings.has_option(self.SETTINGS_SECTION, 'argument_columns'):
             self.app_settings.set(self.SETTINGS_SECTION, 'argument_columns', '1')
             made_changes = True
+        if not self.app_settings.has_option(self.SETTINGS_SECTION, 'show_icons'):
+            self.app_settings.set(self.SETTINGS_SECTION, 'show_icons', 'true')
+            made_changes = True
         if not self.app_settings.has_option(self.SETTINGS_SECTION, 'last_loaded_ini'):
             default_ini_path = self.script_dir / "default.ini"
             self.app_settings.set(self.SETTINGS_SECTION, 'last_loaded_ini', str(default_ini_path.resolve()))
@@ -566,6 +621,7 @@ class MainWindow(QMainWindow):
         # Store old values to check for changes that require action
         old_multi_tab = self.app_settings.getboolean(self.SETTINGS_SECTION, 'multi_tab_mode', fallback=False)
         old_arg_cols = self.app_settings.getint(self.SETTINGS_SECTION, 'argument_columns', fallback=1)
+        old_show_icons = self.app_settings.getboolean(self.SETTINGS_SECTION, 'show_icons', fallback=True)
 
         dialog = SettingsDialog(self, settings_parser=self.app_settings)
 
@@ -575,11 +631,17 @@ class MainWindow(QMainWindow):
 
             new_multi_tab = self.app_settings.getboolean(self.SETTINGS_SECTION, 'multi_tab_mode', fallback=False)
             new_arg_cols = self.app_settings.getint(self.SETTINGS_SECTION, 'argument_columns', fallback=1)
+            new_show_icons = self.app_settings.getboolean(self.SETTINGS_SECTION, 'show_icons', fallback=True)
+
+            # Update icon visibility immediately if it changed
+            if old_show_icons != new_show_icons:
+                self.show_icons = new_show_icons
+                self._apply_icons()
 
             # Check for restart-required changes
             if old_multi_tab != new_multi_tab:
                 reply = QMessageBox.question(self, "Restart Required",
-                                             "Changes to the UI mode require a restart to take effect.\n\nRestart now?",
+                                             "Changing the tab mode requires a restart to take full effect.\n\nRestart now?",
                                              QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
                 if reply == QMessageBox.StandardButton.Yes:
                     self.restart_application()
