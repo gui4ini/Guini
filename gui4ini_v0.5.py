@@ -715,7 +715,7 @@ class MainWindow(QMainWindow):
         for key, value in section_items:
             label_text = self.config.get('Labels', key, fallback=key)
             clean_label, type_hint = self._parse_label(label_text)
-            editor, _ = self._create_editor_for_value(value, type_hint=type_hint)
+            editor, _ = self._create_editor_for_value(key, value, type_hint=type_hint)
             label = QLabel(clean_label)
             self.config_layout.addWidget(label, current_row, 0)
             self.config_layout.addWidget(editor, current_row, 1, 1, num_columns * 2 - 1)
@@ -738,7 +738,7 @@ class MainWindow(QMainWindow):
 
             label_text = self.config.get('Labels', key, fallback=key)
             clean_label, type_hint = self._parse_label(label_text)
-            editor, _ = self._create_editor_for_value(value, type_hint=type_hint)
+            editor, _ = self._create_editor_for_value(key, value, type_hint=type_hint)
             label = QLabel(clean_label)
             self.config_layout.addWidget(label, start_row + target_row_offset, target_col * 2)
             self.config_layout.addWidget(editor, start_row + target_row_offset, target_col * 2 + 1)
@@ -872,49 +872,58 @@ class MainWindow(QMainWindow):
             return clean_label, type_hint
         return label_text, None
 
-    def _create_editor_for_value(self, value: str, type_hint: str | None = None) -> tuple[QWidget, str]:
+    def _create_editor_for_value(self, key: str, value: str, type_hint: str | None = None) -> tuple[QWidget, str]:
         """Creates the appropriate editor widget, prioritizing the type_hint if provided."""
-        # Determine the type, using the hint if available, otherwise guess from the value
-        final_type = type_hint
-        if not final_type:
-            if value.lower() in ['true', 'false']:
-                final_type = 'boolean'
-            else:
-                try:
-                    int(value)
-                    final_type = 'integer'
-                except ValueError:
+        # Special case: the script_file_name key should always be a filename editor.
+        if key == 'script_file_name':
+            final_type = 'filename'
+        else:
+            # Determine the type, using the hint if available, otherwise guess from the value
+            final_type = type_hint
+            if not final_type:
+                if value.lower() in ['true', 'false']:
+                    final_type = 'boolean'
+                else:
                     try:
-                        float(value)
-                        final_type = 'float'
+                        int(value)
+                        final_type = 'integer'
                     except ValueError:
-                        final_type = 'string'
+                        try:
+                            float(value)
+                            final_type = 'float'
+                        except ValueError:
+                            final_type = 'string'
 
         # Create the widget based on the determined type
         if final_type == "boolean":
             editor = QCheckBox()
             editor.stateChanged.connect(lambda: self._set_dirty(True))
             editor.setChecked(value.lower() == 'true')
+            editor.setToolTip("A boolean value (true or false).")
             return editor, "boolean"
         elif final_type == "integer":
             editor = QLineEdit(value)
             editor.textChanged.connect(lambda: self._set_dirty(True))
             editor.setValidator(QIntValidator())
+            editor.setToolTip("An integer value (e.g., 1, -10, 100).")
             return editor, "integer"
         elif final_type == "float":
             editor = QLineEdit(value)
             editor.textChanged.connect(lambda: self._set_dirty(True))
             editor.setValidator(QDoubleValidator())
+            editor.setToolTip("A floating-point value (e.g., 1.0, -3.14).")
             return editor, "float"
         elif final_type == "filename":
             editor = FileNameWidget(value)
             editor.line_edit.textChanged.connect(lambda: self._set_dirty(True))
             editor.browse_button.clicked.connect(lambda: self._open_file_dialog(editor.line_edit))
+            editor.setToolTip("A path to a file.")
             return editor, "filename"
 
         # Default to string for any other case (including unknown type hints)
         editor = QLineEdit(value)
         editor.textChanged.connect(lambda: self._set_dirty(True))
+        editor.setToolTip("A string of text.")
         return editor, "string"
 
     def save_config(self):
