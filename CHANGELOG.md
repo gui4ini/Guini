@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### To be Tested
 
+* [ ] 'Reload INI' Button seems strange
 * [ ] Test in a bootstrap mode: add guini inside the  `if __name__ == "__main__":` part, and the the script run it from within.
 
 
@@ -36,6 +37,10 @@ This version introduced a major UI overhaul and significant feature enhancements
 - **Reload INI**: Added a "Reload" action (`File -> Reload`) to refresh the UI from the current INI file.
 - **Argument Tooltips**: Type hints in the `[Labels]` section now generate helpful tooltips on the input fields.
 - **Dynamic Argument Columns**: Users can now configure the number of columns for the arguments section via Settings.
+
+### Changed
+
+- **default `ini` file**: `gui4ini_v**.ini` has been phased out. Now all versions sould use  `gui4ini.ini`
 
 ## [0.5.0] - 2023-09-20
 
