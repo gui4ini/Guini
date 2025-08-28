@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * [ ] Installation using `pip`.
 * [ ] Support for recognizing lists of numbers and files as argument types.
 * [ ] UI controls to add, remove, or edit keys directly, updating the INI file.
+* [ ] Open `.ini` file in a text editor.
+* [ ] Compatible to Linux and iOS(?)
 
 ### To Be Updated
 * [ ] Documentation: Update screenshots to reflect the latest version.
