@@ -1,8 +1,6 @@
 # [Guini](https://github.com/gui4ini/Guini): Graphical User Interface (GUI) for INI files
 
-<p align="center">
-    <img src="docs/imgs/Guini - Logo.png" height="400">
-</p>
+<img src="docs/imgs/Guini - Logo.png" height="400" alt="Guini - Logo">
 
 See the [**Changelog**](CHANGELOG.md) for version history and release notes.
 
@@ -70,7 +68,7 @@ arg9 = Ninth Argument (filename)
 arg10 = Tenth Argument (filename)
 ```
 
-* **Note**: *Screenshot of version 0.6. There will be differences on newer versions, but one can get the idea.*
+- **Note**: *Screenshot of version 0.6. There will be differences on newer versions, but one can get the idea.*
 
 When the user presses the `Run` button, the following command will be run:
 
@@ -90,12 +88,14 @@ The outputs of the python script will be shown in the *Output* terminal in the G
 
 This project includes an `environment.yml` file that specifies all necessary dependencies, including the Python version.
 
-1.  **Create the environment** from the file. This will create a new environment named `guini-env`.
+1. **Create the environment** from the file. This will create a new environment named `guini-env`.
+
     ```bash
     conda env create -f environment.yml
     ```
 
-2.  **Activate the environment** before running the application.
+2. **Activate the environment** before running the application.
+
     ```bash
     conda activate guini-env
     ```
@@ -104,19 +104,23 @@ This project includes an `environment.yml` file that specifies all necessary dep
 
 If you prefer to use `pip`, it is highly recommended to use a virtual environment to avoid conflicts with other projects.
 
-1.  **Create and activate a virtual environment**.
-    *   On Windows:
+1. **Create and activate a virtual environment**.
+    - On Windows:
+
         ```bash
         python -m venv .venv
         .venv\Scripts\activate
         ```
-    *   On macOS/Linux:
+
+    - On macOS/Linux:
+
         ```bash
         python -m venv .venv
         source .venv/bin/activate
         ```
 
-2.  **Install the dependencies** using the `requirements.txt` file.
+2. **Install the dependencies** using the `requirements.txt` file.
+
     ```bash
     pip install -r requirements.txt
     ```
@@ -136,8 +140,8 @@ This is the recomended workflow to use Guini:
     ```
 
 4. Guini will first load the file `guini.ini`. To load your `.ini` there are two options:
-   * You can rename the `.ini` file you created as `guini.ini`. This is the recomended option if you will run your script several times.
-   * In the GUI, go to `File->Open INI file`, and located your own file.
+   - You can rename the `.ini` file you created as `guini.ini`. This is the recomended option if you will run your script several times.
+   - In the GUI, go to `File->Open INI file`, and located your own file.
 
 5. When all the arguments are correct, press the button `Run`. The command that Guini will run will be displayed in the Output window. Any error that occur when run the script will also be displayed in the Output window (*try it!*).
 
@@ -147,9 +151,9 @@ See the [configparser](https://docs.python.org/3.10/library/configparser.html#su
 
 For Guini, the requirements for the `*.ini` file are:
 
-* The only mandatory sections are `[Command]` and `[Arguments]`.
-* The section `[Labels]` is optional.
-* The keys are also required to be named `script_file_name`, `arg1`, `arg2`, ...,  `argN`, accordingly.
+- The only mandatory sections are `[Command]` and `[Arguments]`.
+- The section `[Labels]` is optional.
+- The keys are also required to be named `script_file_name`, `arg1`, `arg2`, ...,  `argN`, accordingly.
 
 ### Adding variable types
 
@@ -164,11 +168,11 @@ arg2 = Second Argument (Float)
 
 If you do not provide the types, Guini will try to guess then. The variable types acceptable are
 
-* `Integers`
-* `Floats`
-* `Booleans`
-* `Strings`
-* `filename`: Path to files
+- `Integers`
+- `Floats`
+- `Booleans`
+- `Strings`
+- `filename`: Path to files
 
 For instance, by providing the `filename` type, Guini will provide use the `Open->File` button in the GUI to search for the file.
 
@@ -207,11 +211,7 @@ arg9 =
 
 ### Example 1 GUI
 
-<p align="center">
-    <img src="docs/imgs/Screenshot 2025-08-23 223802.png" height="400">
-</p>
-
-
+<img src="docs/imgs/Screenshot 2025-08-23 223802.png" height="400" alt="Screenshot 2025-08-23 223802">
 
 ### Example 2 `*.ini` file - Use with `matplotlib`
 
@@ -243,10 +243,7 @@ arg7 = coef order 4 (Float)
 
 ### Example 2 GUI - Use with `matplotlib`
 
-<p align="center">
-    <img src="docs/imgs/Screenshot v0p3 with matplotlib.png" height="400">
-</p>
-
+<img src="docs/imgs/Screenshot v0p3 with matplotlib.png" height="400" alt="Screenshot v0p3 with matplotlib">
 
 ## FAQ
 
