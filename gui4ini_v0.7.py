@@ -2,13 +2,11 @@ import sys
 import configparser
 import pathlib
 from configupdater import ConfigUpdater
-import resources_rc  # Import the compiled resources
+import resources_rc  # Import the compiled resources # noqa
 import re
 from datetime import datetime
 from PySide6.QtCore import QProcess, Qt, QUrl, QTimer
 
-__version__ = "0.7.0"
-APP_NAME = "Guini"
 from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -31,9 +29,12 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QMessageBox,
 )
-from PySide6.QtGui import (
-    QPalette, QColor, QIntValidator, QDoubleValidator, QAction, QKeySequence, QCloseEvent, QIcon, QPixmap, QDesktopServices, QTextCursor
+from PySide6.QtGui import ( # noqa
+    QPalette, QColor, QIntValidator, QDoubleValidator, QAction, QKeySequence, QCloseEvent, QIcon, QPixmap, QDesktopServices, QTextCursor # noqa
 )
+
+__version__ = "0.7.0"
+APP_NAME = "Guini"
 
 
 class FileNameWidget(QWidget):
@@ -63,6 +64,7 @@ class FileNameWidget(QWidget):
 
     def text(self) -> str:
         return self.line_edit.text()
+
 
 class SettingsDialog(QDialog):
     """A dialog to configure application-wide settings."""
@@ -560,7 +562,7 @@ class MainWindow(QMainWindow):
                 if isinstance(editor, QCheckBox):
                     if ui_value == 'true':
                         args.append(flag)
-                elif ui_value: # For text fields, only add if there is a value
+                elif ui_value:  # For text fields, only add if there is a value
                     args.append(flag)
                     args.append(ui_value)
         else:
@@ -715,7 +717,7 @@ class MainWindow(QMainWindow):
     def _prompt_open_file(self):
         """Opens a dialog to select a new INI file and reloads the UI."""
         if not self._prompt_to_save_if_dirty():
-            return # User cancelled
+            return  # User cancelled
 
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Open INI File", str(self.script_dir), "INI Files (*.ini);;All Files (*)"
@@ -820,7 +822,7 @@ class MainWindow(QMainWindow):
             # We can't proceed without a config file, so leave the UI empty.
             return
 
-        self.config_file = file_path  #  This is the currently loaded SCRIPT config
+        self.config_file = file_path  # This is the currently loaded SCRIPT config
         self.reload_button.setEnabled(True)
         self.reload_action.setEnabled(True)
         self.edit_ini_button.setEnabled(True)
@@ -851,7 +853,7 @@ class MainWindow(QMainWindow):
         self._save_app_settings()
         # --- END SAVE ---
 
-        num_columns = self.app_settings.getint('Settings', 'argument_columns', fallback=1)
+        # num_columns = self.app_settings.getint('Settings', 'argument_columns', fallback=1)
         current_row = 0
 
         sections_to_display = ['Command', 'Arguments']
@@ -987,7 +989,7 @@ class MainWindow(QMainWindow):
             inner_type_match = re.search(r"list\[(\w+)\]", final_type)
             inner_type = inner_type_match.group(1) if inner_type_match else "items"
             if inner_type == 'file':
-                editor.setToolTip(f"A comma-separated list of files.\nYou can also use wildcards (e.g., data/*.csv).")
+                editor.setToolTip("A comma-separated list of files.\nYou can also use wildcards (e.g., data/*.csv).")
             else:
                 editor.setToolTip(f"A comma-separated list of {inner_type}s (e.g., 1, 2, 3).")
             return editor, final_type
@@ -1017,7 +1019,7 @@ class MainWindow(QMainWindow):
             file_filter = "Python Scripts (*.py *.pyw);;All Files (*)" if key == 'script_file_name' else "All Files (*)"
             editor.set_dialog_options(file_filter=file_filter, start_dir=start_dir)
             if key == 'script_file_name':
-                pass # Already handled by the filter logic above
+                pass  # Already handled by the filter logic above
             editor.setToolTip("A path to a file.")
             return editor, "filename"
 
@@ -1083,7 +1085,7 @@ class MainWindow(QMainWindow):
 
         # Log a separator for the new run instead of clearing the output
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        self._log_message(current_widget, "\n" + "="*60, bold=True)
+        self._log_message(current_widget, "\n" + "=" * 60, bold=True)
         self._log_message(current_widget, f"--- Starting new run at: {now} ---", bold=True)
 
         executable = sys.executable
@@ -1094,7 +1096,7 @@ class MainWindow(QMainWindow):
             pythonw_exe = str(python_exe_path.with_name('pythonw.exe'))
 
             if not pathlib.Path(pythonw_exe).exists():
-                self._log_message(current_widget, f'<font color="orange">Warning: pythonw.exe not found. Launching attached process with python.exe instead.</font>')
+                self._log_message(current_widget, '<font color="orange">Warning: pythonw.exe not found. Launching attached process with python.exe instead.</font>')
                 # Fall through to the normal (attached) execution path below
             else:
                 executable = pythonw_exe
