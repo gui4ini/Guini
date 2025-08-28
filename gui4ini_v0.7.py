@@ -5,7 +5,7 @@ from configupdater import ConfigUpdater
 import resources_rc  # Import the compiled resources
 import re
 from datetime import datetime
-from PySide6.QtCore import QProcess, Qt
+from PySide6.QtCore import QProcess, Qt, QUrl
 
 __version__ = "0.7.0"
 APP_NAME = "Guini"
@@ -32,7 +32,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 from PySide6.QtGui import (
-    QPalette, QColor, QIntValidator, QDoubleValidator, QAction, QKeySequence, QCloseEvent, QIcon, QPixmap
+    QPalette, QColor, QIntValidator, QDoubleValidator, QAction, QKeySequence, QCloseEvent, QIcon, QPixmap, QDesktopServices
 )
 
 
@@ -207,6 +207,12 @@ class MainWindow(QMainWindow):
         button_layout.addWidget(self.save_button)
         button_layout.addWidget(self.reload_button)
 
+        self.edit_ini_button = QPushButton("Edit INI")
+        self.edit_ini_button.setToolTip("Open the current INI file in the default text editor (Ctrl+E).")
+        self.edit_ini_button.clicked.connect(self._open_ini_in_editor)
+        self.edit_ini_button.setEnabled(False)
+        button_layout.addWidget(self.edit_ini_button)
+
         # Add another separator
         separator2 = QFrame()
         separator2.setFrameShape(QFrame.Shape.VLine)
@@ -318,6 +324,11 @@ class MainWindow(QMainWindow):
         self.open_action.setShortcut(QKeySequence.StandardKey.Open)
         self.open_action.triggered.connect(self._prompt_open_file)
 
+        self.edit_ini_action = QAction("&Edit INI File", self)
+        self.edit_ini_action.triggered.connect(self._open_ini_in_editor)
+        self.edit_ini_action.setEnabled(False)
+        self.edit_ini_action.setShortcut("Ctrl+E")
+
         self.save_action = QAction("&Save INI", self)
         self.save_action.setToolTip("Save the current configuration values to the INI file.")
         self.save_action.setShortcut(QKeySequence.StandardKey.Save)
@@ -346,6 +357,7 @@ class MainWindow(QMainWindow):
         """Creates the main menu bar."""
         file_menu = self.menuBar().addMenu("&File")
         file_menu.addAction(self.open_action)
+        file_menu.addAction(self.edit_ini_action)
         file_menu.addAction(self.save_action)
         file_menu.addAction(self.reload_action)
         file_menu.addSeparator()
@@ -785,6 +797,8 @@ class MainWindow(QMainWindow):
         self.config_file = file_path  #  This is the currently loaded SCRIPT config
         self.reload_button.setEnabled(True)
         self.reload_action.setEnabled(True)
+        self.edit_ini_button.setEnabled(True)
+        self.edit_ini_action.setEnabled(True)
         self.setWindowTitle(f"{APP_NAME} v{__version__} - {self.config_file.name}")
         self._clear_config_layout()
         self.editors.clear()
@@ -994,6 +1008,29 @@ class MainWindow(QMainWindow):
 
         self.statusBar().showMessage(f"Configuration saved to {self.config_file}", 3000)
         self._set_dirty(False)
+
+    def _open_ini_in_editor(self):
+        """Opens the currently loaded INI file in the default system editor."""
+        if self.config_file and self.config_file.exists():
+            # Prompt to save unsaved changes first, as external edits will cause a reload.
+            if self.is_dirty:
+                reply = QMessageBox.question(
+                    self,
+                    "Unsaved Changes",
+                    "You have unsaved changes. Do you want to save them before editing the file externally?\n\n"
+                    "Editing the file externally without saving may cause your changes to be lost.",
+                    QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel
+                )
+                if reply == QMessageBox.StandardButton.Save:
+                    self.save_config()
+                elif reply == QMessageBox.StandardButton.Cancel:
+                    return
+
+            url = QUrl.fromLocalFile(str(self.config_file))
+            QDesktopServices.openUrl(url)
+            self.statusBar().showMessage(f"Opening {self.config_file.name} in editor...", 3000)
+        else:
+            self.statusBar().showMessage("No INI file loaded to edit.", 3000)
 
     def run_script(self):
         """Runs the configured script in the currently active tab."""
