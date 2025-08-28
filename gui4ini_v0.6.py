@@ -517,7 +517,8 @@ class MainWindow(QMainWindow):
         args = []
         if self.config.has_section('ArgParse'):
             # New ArgParse logic
-            for key, definition_text in self.config.items('ArgParse'):
+            for key, definition_obj in self.config.items('ArgParse'):
+                definition_text = definition_obj.value
                 flag, _ = self._parse_argparse_definition(definition_text)
                 if not flag:
                     continue
@@ -706,8 +707,12 @@ class MainWindow(QMainWindow):
         self.config_layout.addWidget(logo_label, current_row, 0, 1, num_columns * 2)
         current_row += 1
 
-        for key, value in section_items:
-            label_text = self.config.get('Labels', key, fallback=key)
+        for key, option_obj in section_items:
+            value = option_obj.value
+            if self.config.has_section('Labels'):
+                label_text = self.config.get('Labels', key, fallback=key)
+            else:
+                label_text = key
             clean_label, type_hint = self._parse_label(label_text)
             editor, _ = self._create_editor_for_value(key, value, type_hint=type_hint)
             label = QLabel(clean_label)
@@ -728,13 +733,17 @@ class MainWindow(QMainWindow):
             num_args = len(arg_definitions)
             rows_per_col = (num_args + num_columns - 1) // num_columns
 
-            for i, (key, definition_text) in enumerate(arg_definitions):
+            for i, (key, definition_obj) in enumerate(arg_definitions):
                 target_col = i // rows_per_col
                 target_row_offset = i % rows_per_col
+                definition_text = definition_obj.value
                 display_label = key.replace('_', ' ').title()
                 label = QLabel(display_label)
                 _, type_hint = self._parse_argparse_definition(definition_text)
-                default_value = self.config.get('Arguments', key, fallback='')
+                # Get the option object from the [Arguments] section
+                default_value_obj = self.config.get('Arguments', key, fallback=None)
+                # Extract the string value, or use an empty string as a fallback
+                default_value = default_value_obj.value if default_value_obj else ''
                 editor, _ = self._create_editor_for_value(key, default_value, type_hint=type_hint)
                 self.config_layout.addWidget(label, start_row + target_row_offset, target_col * 2)
                 self.config_layout.addWidget(editor, start_row + target_row_offset, target_col * 2 + 1)
@@ -744,10 +753,14 @@ class MainWindow(QMainWindow):
             # Fallback to old argN logic
             num_args = len(section_items)
             rows_per_col = (num_args + num_columns - 1) // num_columns
-            for i, (key, value) in enumerate(section_items):
+            for i, (key, option_obj) in enumerate(section_items):
                 target_col = i // rows_per_col
                 target_row_offset = i % rows_per_col
-                label_text = self.config.get('Labels', key, fallback=key)
+                value = option_obj.value
+                if self.config.has_section('Labels'):
+                    label_text = self.config.get('Labels', key, fallback=key)
+                else:
+                    label_text = key
                 clean_label, type_hint = self._parse_label(label_text)
                 editor, _ = self._create_editor_for_value(key, value, type_hint=type_hint)
                 label = QLabel(clean_label)
