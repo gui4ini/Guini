@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * [ ] Installation using `pip`.
 * [ ] Support for recognizing lists of numbers and files as argument types.
 * [ ] UI controls to add, remove, or edit keys directly, updating the INI file.
-* [ ] Open `.ini` file in a text editor.
+* [x] Open `.ini` file in a text editor.
 * [ ] Compatible to Linux and iOS(?)
 
 ### To Be Updated
@@ -21,7 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### To be Tested
 
-* [ ] 'Reload INI' Button seems strange
+* [X] 'Reload INI' Button seems strange
 * [ ] Test in a bootstrap mode: add guini inside the  `if __name__ == "__main__":` part, and the the script run it from within.
 
 
