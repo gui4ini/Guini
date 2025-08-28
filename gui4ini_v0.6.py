@@ -1,6 +1,7 @@
 import sys
 import configparser
 import pathlib
+from configupdater import ConfigUpdater
 import resources_rc  # Import the compiled resources
 import re
 from datetime import datetime
@@ -155,7 +156,7 @@ class MainWindow(QMainWindow):
         self._create_actions()
         self._create_menus()
 
-        self.config = configparser.ConfigParser()
+        self.config = ConfigUpdater()
 
         # Main layout and the container widget
         self.main_layout = QVBoxLayout()
@@ -770,7 +771,7 @@ class MainWindow(QMainWindow):
         self._clear_config_layout()
         self.editors.clear()
 
-        self.config = configparser.ConfigParser()
+        self.config = ConfigUpdater()
         try:
             self.config.read(self.config_file, encoding='utf-8')
         except configparser.Error as e:
@@ -961,14 +962,17 @@ class MainWindow(QMainWindow):
         return editor, "string"
 
     def save_config(self):
-        """Iterate through the editors and save the values back to the config object."""
+        """Saves the current UI values back to the INI file, preserving comments and structure."""
         ui_values = self._get_ui_values()
+
+        # self.config is a ConfigUpdater object which handles round-trip modifications
         for (section, key), value in ui_values.items():
+            if not self.config.has_section(section):
+                self.config.add_section(section)
             self.config.set(section, key, value)
 
         if self.config_file:
-            with open(self.config_file, "w") as configfile:
-                self.config.write(configfile)
+            self.config.update_file()
 
         self.statusBar().showMessage(f"Configuration saved to {self.config_file}", 3000)
         self._set_dirty(False)
