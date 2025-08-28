@@ -1,0 +1,11 @@
+name: guini-env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.9
+  - pyside6
+  - configupdater
+  # If you had a pip-only package, you would add it like this:
+  # - pip:
+  #   - some-pip-only-package

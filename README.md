@@ -11,10 +11,11 @@ See the [**Changelog**](CHANGELOG.md) for version history and release notes.
 - [Guini: Graphical User Interface (GUI) for INI files](#guini-graphical-user-interface-gui-for-ini-files)
   - [Table of Contents](#table-of-contents)
   - [Description](#description)
+  - [Installation  Using `conda` (Recommended)](#installation--using-conda-recommended)
+    - [Using `pip` and `venv`](#using-pip-and-venv)
   - [Usage](#usage)
   - [`*.ini` files for Guini](#ini-files-for-guini)
     - [Adding variable types](#adding-variable-types)
-  - [Solving dependencies with `conda`](#solving-dependencies-with-conda)
   - [More Screenshots of the GUI (for version 0.3)](#more-screenshots-of-the-gui-for-version-03)
     - [Example 1 `*.ini` file](#example-1-ini-file)
     - [Example 1 GUI](#example-1-gui)
@@ -85,6 +86,41 @@ python argument_analyzer.py first_argument 123 another_argument true C:\path\to\
 
 The outputs of the python script will be shown in the *Output* terminal in the GUI (see line number 6 in the *Output* terminal of the image above). One can run the script several times.
 
+## Installation  Using `conda` (Recommended)
+
+This project includes an `environment.yml` file that specifies all necessary dependencies, including the Python version.
+
+1.  **Create the environment** from the file. This will create a new environment named `guini-env`.
+    ```bash
+    conda env create -f environment.yml
+    ```
+
+2.  **Activate the environment** before running the application.
+    ```bash
+    conda activate guini-env
+    ```
+
+### Using `pip` and `venv`
+
+If you prefer to use `pip`, it is highly recommended to use a virtual environment to avoid conflicts with other projects.
+
+1.  **Create and activate a virtual environment**.
+    *   On Windows:
+        ```bash
+        python -m venv .venv
+        .venv\Scripts\activate
+        ```
+    *   On macOS/Linux:
+        ```bash
+        python -m venv .venv
+        source .venv/bin/activate
+        ```
+
+2.  **Install the dependencies** using the `requirements.txt` file.
+    ```bash
+    pip install -r requirements.txt
+    ```
+
 ## Usage
 
 This is the recomended workflow to use Guini:
@@ -135,16 +171,6 @@ If you do not provide the types, Guini will try to guess then. The variable type
 * `filename`: Path to files
 
 For instance, by providing the `filename` type, Guini will provide use the `Open->File` button in the GUI to search for the file.
-
-## Solving dependencies with `conda`
-
-The only mandatory dependency is Python and PySide. Other dependencies are for the examples added in the project.
-
-```bash
-conda create --name gui_env python=3.12
-conda activate gui_env
-conda install -c conda-forge pyside numpy matplotlib
-```
 
 ## More Screenshots of the GUI (for version 0.3)
 
