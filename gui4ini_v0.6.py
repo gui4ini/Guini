@@ -72,6 +72,16 @@ class SettingsDialog(QDialog):
         self.remember_size_checkbox.setChecked(self.settings.getboolean('Settings', 'remember_window_size', fallback=True))
         form_layout.addRow(self.remember_size_checkbox)
 
+        # --- Execution Settings ---
+        execution_label = QLabel("Execution")
+        execution_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        form_layout.addRow(execution_label)
+
+        self.run_background_checkbox = QCheckBox("Run scripts in the background (using pythonw)")
+        self.run_background_checkbox.setToolTip("If checked, scripts will be launched with 'pythonw.exe', detaching them from the GUI.\nNo output will be captured.")
+        self.run_background_checkbox.setChecked(self.settings.getboolean('Settings', 'run_in_background', fallback=False))
+        form_layout.addRow(self.run_background_checkbox)
+
         layout_label = QLabel("Layout")
         layout_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
         form_layout.addRow(layout_label)
@@ -95,6 +105,7 @@ class SettingsDialog(QDialog):
         """Updates the settings ConfigParser object with values from the dialog."""
         self.settings.set('Settings', 'multi_tab_mode', str(self.multi_tab_checkbox.isChecked()).lower())
         self.settings.set('Settings', 'remember_window_size', str(self.remember_size_checkbox.isChecked()).lower())
+        self.settings.set('Settings', 'run_in_background', str(self.run_background_checkbox.isChecked()).lower())
         self.settings.set('Settings', 'argument_columns', str(self.columns_spinbox.value()))
 
 
@@ -120,6 +131,7 @@ class MainWindow(QMainWindow):
 
         self.multi_tab_enabled = self.app_settings.getboolean(self.SETTINGS_SECTION, 'multi_tab_mode', fallback=False)
         self.remember_window_size = self.app_settings.getboolean(self.SETTINGS_SECTION, 'remember_window_size', fallback=True)
+        self.run_in_background = self.app_settings.getboolean(self.SETTINGS_SECTION, 'run_in_background', fallback=False)
         # --- End App Settings ---
 
         self.setWindowTitle("INI Script Runner")
@@ -552,6 +564,9 @@ class MainWindow(QMainWindow):
         if not self.app_settings.has_option(self.SETTINGS_SECTION, 'remember_window_size'):
             self.app_settings.set(self.SETTINGS_SECTION, 'remember_window_size', 'true')
             made_changes = True
+        if not self.app_settings.has_option(self.SETTINGS_SECTION, 'run_in_background'):
+            self.app_settings.set(self.SETTINGS_SECTION, 'run_in_background', 'false')
+            made_changes = True
         if not self.app_settings.has_option(self.SETTINGS_SECTION, 'window_width'):
             self.app_settings.set(self.SETTINGS_SECTION, 'window_width', '600')
             made_changes = True
@@ -582,6 +597,7 @@ class MainWindow(QMainWindow):
         # Store old values to check for changes that require action
         old_multi_tab = self.app_settings.getboolean(self.SETTINGS_SECTION, 'multi_tab_mode', fallback=False)
         old_arg_cols = self.app_settings.getint(self.SETTINGS_SECTION, 'argument_columns', fallback=1)
+        old_run_background = self.app_settings.getboolean(self.SETTINGS_SECTION, 'run_in_background', fallback=False)
 
         dialog = SettingsDialog(self, settings_parser=self.app_settings)
 
@@ -591,6 +607,11 @@ class MainWindow(QMainWindow):
 
             new_multi_tab = self.app_settings.getboolean(self.SETTINGS_SECTION, 'multi_tab_mode', fallback=False)
             new_arg_cols = self.app_settings.getint(self.SETTINGS_SECTION, 'argument_columns', fallback=1)
+            new_run_background = self.app_settings.getboolean(self.SETTINGS_SECTION, 'run_in_background', fallback=False)
+
+            # Update background run setting immediately as it requires no restart/reload
+            if old_run_background != new_run_background:
+                self.run_in_background = new_run_background
 
             # Check for restart-required changes
             if old_multi_tab != new_multi_tab:
@@ -918,8 +939,31 @@ class MainWindow(QMainWindow):
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self._log_message(current_widget, "\n" + "="*60, bold=True)
         self._log_message(current_widget, f"--- Starting new run at: {now} ---", bold=True)
+
+        # --- Handle background (detached) execution ---
+        if self.run_in_background:
+            python_exe_path = pathlib.Path(sys.executable)
+            executable = str(python_exe_path.with_name('pythonw.exe'))
+
+            if not pathlib.Path(executable).exists():
+                self._log_message(current_widget, f'<font color="orange">Warning: pythonw.exe not found. Launching attached process with python.exe instead.</font>')
+                # Fall through to the normal (attached) execution path below
+            else:
+                self._log_message(current_widget, '<font color="red">Starting script in background with pythonw.exe. Output will not be captured.</font>')
+                quoted_args = [f'"{arg}"' if ' ' in arg else arg for arg in args]
+                command_str = f"\"{executable}\" \"{script_path}\" {' '.join(quoted_args)}"
+                self._log_message(current_widget, f"$ {command_str}\n", color="#666666")
+
+                QProcess.startDetached(executable, [str(script_path)] + args)
+                self.statusBar().showMessage(f"Launched '{script_path.name}' in background.", 4000)
+                # Since we are detached, the run is "finished" from the GUI's perspective.
+                # We don't track the process, so we just return.
+                return
+
+        # --- Handle normal (attached) execution ---
+        executable = sys.executable
         quoted_args = [f'"{arg}"' if ' ' in arg else arg for arg in args]
-        command_str = f"python \"{script_path}\" {' '.join(quoted_args)}"
+        command_str = f"\"{executable}\" \"{script_path}\" {' '.join(quoted_args)}"
         self._log_message(current_widget, f"$ {command_str}\n", color="#666666")
 
         process = QProcess(self)
@@ -933,7 +977,7 @@ class MainWindow(QMainWindow):
         process.finished.connect(lambda: self.tab_process_finished(process))
 
         self.statusBar().showMessage(f"Running '{script_path.name}'...")
-        process.start("python", [str(script_path)] + args)
+        process.start(executable, [str(script_path)] + args)
 
         # Update UI
         current_index = self.tab_widget.currentIndex()
