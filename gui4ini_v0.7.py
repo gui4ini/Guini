@@ -38,15 +38,31 @@ from PySide6.QtGui import (
 
 class FileNameWidget(QWidget):
     """A composite widget for a line edit and a browse button."""
-    def __init__(self, initial_path: str, parent: QWidget | None = None):
+    def __init__(self, initial_path: str = "", parent: QWidget | None = None):
         super().__init__(parent)
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
+        self.layout = QHBoxLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)
         self.line_edit = QLineEdit(initial_path)
         self.browse_button = QPushButton("...")
-        layout.addWidget(self.line_edit)
-        layout.addWidget(self.browse_button)
+        self.layout.addWidget(self.line_edit)
+        self.layout.addWidget(self.browse_button)
 
+        self.browse_button.clicked.connect(self._open_file_dialog)
+        self._file_filter = "All Files (*)"
+        self._start_dir = "."
+
+    def set_dialog_options(self, file_filter: str, start_dir: str):
+        """Sets the options for the file dialog."""
+        self._file_filter = file_filter
+        self._start_dir = start_dir
+
+    def _open_file_dialog(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select a File", self._start_dir, filter=self._file_filter)
+        if file_path:
+            self.line_edit.setText(file_path)
+
+    def text(self) -> str:
+        return self.line_edit.text()
 
 class SettingsDialog(QDialog):
     """A dialog to configure application-wide settings."""
@@ -508,7 +524,7 @@ class MainWindow(QMainWindow):
         ui_values = {}
         for (section, key), editor in self.editors.items():
             if isinstance(editor, FileNameWidget):
-                ui_values[(section, key)] = editor.line_edit.text()
+                ui_values[(section, key)] = editor.text()
             elif isinstance(editor, QCheckBox):
                 ui_values[(section, key)] = str(editor.isChecked()).lower()
             elif isinstance(editor, QLineEdit):
@@ -997,12 +1013,11 @@ class MainWindow(QMainWindow):
         elif final_type == "filename":
             editor = FileNameWidget(value)
             editor.line_edit.textChanged.connect(lambda: self._set_dirty(True))
+            start_dir = str(self.script_dir)
+            file_filter = "Python Scripts (*.py *.pyw);;All Files (*)" if key == 'script_file_name' else "All Files (*)"
+            editor.set_dialog_options(file_filter=file_filter, start_dir=start_dir)
             if key == 'script_file_name':
-                py_filter = "Python Scripts (*.py *.pyw);;All Files (*)"
-                editor.browse_button.clicked.connect(lambda: self._open_file_dialog(editor.line_edit, py_filter))
-            else:
-                # For other filename arguments, use the default filter
-                editor.browse_button.clicked.connect(lambda: self._open_file_dialog(editor.line_edit))
+                pass # Already handled by the filter logic above
             editor.setToolTip("A path to a file.")
             return editor, "filename"
 
