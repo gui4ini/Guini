@@ -5,7 +5,7 @@ from configupdater import ConfigUpdater
 import resources_rc  # Import the compiled resources
 import re
 from datetime import datetime
-from PySide6.QtCore import QProcess, Qt, QUrl
+from PySide6.QtCore import QProcess, Qt, QUrl, QTimer
 
 __version__ = "0.7.0"
 APP_NAME = "Guini"
@@ -32,7 +32,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
 )
 from PySide6.QtGui import (
-    QPalette, QColor, QIntValidator, QDoubleValidator, QAction, QKeySequence, QCloseEvent, QIcon, QPixmap, QDesktopServices
+    QPalette, QColor, QIntValidator, QDoubleValidator, QAction, QKeySequence, QCloseEvent, QIcon, QPixmap, QDesktopServices, QTextCursor
 )
 
 
@@ -681,6 +681,14 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Reloading {self.config_file.name}...", 2000)
         self._load_and_build_ui(self.config_file)
 
+        # After reloading the UI, the QTextEdit might scroll to the top.
+        # This ensures the view remains at the bottom, where the last output is.
+        # We use a QTimer to schedule this action for after the layout has settled.
+        current_widget = self.tab_widget.currentWidget()
+        if isinstance(current_widget, QTextEdit):
+            # Schedule the scroll to happen after the current event processing is finished.
+            QTimer.singleShot(0, lambda: current_widget.verticalScrollBar().setValue(current_widget.verticalScrollBar().maximum()))
+
     def _open_file_dialog(self, line_edit_widget: QLineEdit, file_filter: str = "All Files (*)"):
         """Opens a file dialog and sets the selected path in the provided QLineEdit."""
         # We use self.script_dir to give the dialog a sensible starting place
@@ -725,8 +733,9 @@ class MainWindow(QMainWindow):
         for key, option_obj in section_items:
             value = option_obj.value
             if self.config.has_section('Labels'):
-                # Using str() correctly handles both Option objects and string fallbacks
-                label_text = str(self.config.get('Labels', key, fallback=key))
+                # get() can return an Option object or a string fallback. We need to handle both.
+                label_text_or_obj = self.config.get('Labels', key, fallback=key)
+                label_text = label_text_or_obj.value if hasattr(label_text_or_obj, 'value') else label_text_or_obj
             else:
                 label_text = key
             clean_label, type_hint = self._parse_label(label_text)
@@ -774,8 +783,9 @@ class MainWindow(QMainWindow):
                 target_row_offset = i % rows_per_col
                 value = option_obj.value
                 if self.config.has_section('Labels'):
-                    # Using str() correctly handles both Option objects and string fallbacks
-                    label_text = str(self.config.get('Labels', key, fallback=key))
+                    # get() can return an Option object or a string fallback. We need to handle both.
+                    label_text_or_obj = self.config.get('Labels', key, fallback=key)
+                    label_text = label_text_or_obj.value if hasattr(label_text_or_obj, 'value') else label_text_or_obj
                 else:
                     label_text = key
                 clean_label, type_hint = self._parse_label(label_text)
@@ -866,6 +876,11 @@ class MainWindow(QMainWindow):
 
     def _log_message(self, widget: QTextEdit, text: str, color: str | None = None, bold: bool = False):
         """Appends a message to the output area with optional styling."""
+        # Check if the scrollbar is at the bottom before we add new text.
+        # This allows the user to scroll up and inspect output without being forced back down.
+        scrollbar = widget.verticalScrollBar()
+        is_at_bottom = scrollbar.value() >= (scrollbar.maximum() - 4)  # A small tolerance
+
         if bold:
             text = f"<b>{text}</b>"
         if color:
@@ -874,6 +889,10 @@ class MainWindow(QMainWindow):
             text = f'<font color="{color}">{text}</font>'
 
         widget.append(text)
+
+        if is_at_bottom:
+            # If we were at the bottom, stay at the bottom.
+            scrollbar.setValue(scrollbar.maximum())
 
     def save_output(self):
         """Saves the content of the current tab's output area to a text file."""
