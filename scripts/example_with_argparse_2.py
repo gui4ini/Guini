@@ -2,6 +2,7 @@ import argparse
 import sys
 import time
 
+
 def main():
     parser = argparse.ArgumentParser(description="A more advanced example for Guini using the ArgParse section.")
 
