@@ -664,10 +664,10 @@ class MainWindow(QMainWindow):
         self.statusBar().showMessage(f"Reloading {self.config_file.name}...", 2000)
         self._load_and_build_ui(self.config_file)
 
-    def _open_file_dialog(self, line_edit_widget: QLineEdit):
+    def _open_file_dialog(self, line_edit_widget: QLineEdit, file_filter: str = "All Files (*)"):
         """Opens a file dialog and sets the selected path in the provided QLineEdit."""
         # We use self.script_dir to give the dialog a sensible starting place
-        file_path, _ = QFileDialog.getOpenFileName(self, "Select a File", str(self.script_dir))
+        file_path, _ = QFileDialog.getOpenFileName(self, "Select a File", str(self.script_dir), filter=file_filter)
         if file_path:
             line_edit_widget.setText(file_path)
 
@@ -945,7 +945,12 @@ class MainWindow(QMainWindow):
         elif final_type == "filename":
             editor = FileNameWidget(value)
             editor.line_edit.textChanged.connect(lambda: self._set_dirty(True))
-            editor.browse_button.clicked.connect(lambda: self._open_file_dialog(editor.line_edit))
+            if key == 'script_file_name':
+                py_filter = "Python Scripts (*.py *.pyw);;All Files (*)"
+                editor.browse_button.clicked.connect(lambda: self._open_file_dialog(editor.line_edit, py_filter))
+            else:
+                # For other filename arguments, use the default filter
+                editor.browse_button.clicked.connect(lambda: self._open_file_dialog(editor.line_edit))
             editor.setToolTip("A path to a file.")
             return editor, "filename"
 
