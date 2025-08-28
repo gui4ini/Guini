@@ -18,7 +18,10 @@ if __name__ == "__main__":
         # Check if the target script actually exists before trying to run it
         if not target_script_path.exists():
             # Provide a clear error message to the user
-            error_message = f"Error: The main application file 'gui4ini_v_0.5.py' was not found in the directory:\n{script_dir}"
+            error_message = (
+                f"Error: The main application file 'gui4ini_v_0.5.py' was not found in the directory:\n"
+                f"{script_dir}"
+            )
             print(error_message, file=sys.stderr)
             sys.exit(1)
 
