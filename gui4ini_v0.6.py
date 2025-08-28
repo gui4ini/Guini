@@ -513,37 +513,45 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, "Error", f"Script file not found at '{script_path}'.")
             return None, None
 
-        # --- Collect and sort arguments numerically ---
-        # Filter for keys like 'arg1', 'arg2', etc. that have a numeric part.
-        argument_keys = [
-            k for s, k in ui_values.keys()
-            if s == 'Arguments' and k.startswith('arg') and k[3:].isdigit()
-        ]
-        # Sort keys based on the integer value of their numeric part.
-        sorted_arg_keys = sorted(argument_keys, key=lambda k: int(k[3:]))
-        # Build the final list of argument values in the correct order.
-        args = [ui_values[('Arguments', key)] for key in sorted_arg_keys]
+        args = []
+        if self.config.has_section('ArgParse'):
+            # New ArgParse logic
+            for key, definition_text in self.config.items('ArgParse'):
+                flag, _ = self._parse_argparse_definition(definition_text)
+                if not flag:
+                    continue
 
-        # --- Validate for empty arguments before the last non-empty one ---
-        last_non_empty_index = -1
-        for i, value in reversed(list(enumerate(args))):
-            if value:
-                last_non_empty_index = i
-                break
+                editor = self.editors.get(('Arguments', key))
+                ui_value = ui_values.get(('Arguments', key))
 
-        # If there are arguments, check for gaps.
-        if last_non_empty_index > 0:
-            for i in range(last_non_empty_index):
-                if not args[i]:
-                    # The argument number is the index + 1
-                    arg_number = i + 1
-                    QMessageBox.warning(
-                        self,
-                        "Invalid Arguments",
-                        f"Argument 'arg{arg_number}' is empty, but a later argument has a value.\n\n"
-                        "Please fill in all preceding arguments before running the script."
-                    )
-                    return None, None
+                if isinstance(editor, QCheckBox):
+                    if ui_value == 'true':
+                        args.append(flag)
+                elif ui_value: # For text fields, only add if there is a value
+                    args.append(flag)
+                    args.append(ui_value)
+        else:
+            # Fallback to old argN logic for backward compatibility
+            argument_keys = [k for s, k in ui_values.keys() if s == 'Arguments' and k.startswith('arg') and k[3:].isdigit()]
+            sorted_arg_keys = sorted(argument_keys, key=lambda k: int(k[3:]))
+            args = [ui_values[('Arguments', key)] for key in sorted_arg_keys]
+
+            last_non_empty_index = -1
+            for i, value in reversed(list(enumerate(args))):
+                if value:
+                    last_non_empty_index = i
+                    break
+
+            if last_non_empty_index > 0:
+                for i in range(last_non_empty_index):
+                    if not args[i]:
+                        arg_number = i + 1
+                        QMessageBox.warning(
+                            self,
+                            "Invalid Arguments",
+                            f"Argument 'arg{arg_number}' is empty, but a later argument has a value.\n\nPlease fill in all preceding arguments before running the script."
+                        )
+                        return None, None
 
         return script_path, args
 
@@ -711,26 +719,41 @@ class MainWindow(QMainWindow):
 
     def _build_arguments_section_ui(self, section_items: list, start_row: int) -> int:
         """Builds the UI for the [Arguments] section with multiple columns."""
-        if not section_items:
-            return start_row
-
         num_columns = self.app_settings.getint(self.SETTINGS_SECTION, 'argument_columns', fallback=1)
-        num_args = len(section_items)
-        rows_per_col = (num_args + num_columns - 1) // num_columns
 
-        for i, (key, value) in enumerate(section_items):
-            target_col = i // rows_per_col
-            target_row_offset = i % rows_per_col
+        if self.config.has_section('ArgParse'):
+            # New ArgParse logic
+            arg_definitions = list(self.config.items('ArgParse'))
+            num_args = len(arg_definitions)
+            rows_per_col = (num_args + num_columns - 1) // num_columns
 
-            label_text = self.config.get('Labels', key, fallback=key)
-            clean_label, type_hint = self._parse_label(label_text)
-            editor, _ = self._create_editor_for_value(key, value, type_hint=type_hint)
-            label = QLabel(clean_label)
-            self.config_layout.addWidget(label, start_row + target_row_offset, target_col * 2)
-            self.config_layout.addWidget(editor, start_row + target_row_offset, target_col * 2 + 1)
-            self.editors[('Arguments', key)] = editor
-
-        return start_row + rows_per_col
+            for i, (key, definition_text) in enumerate(arg_definitions):
+                target_col = i // rows_per_col
+                target_row_offset = i % rows_per_col
+                display_label = key.replace('_', ' ').title()
+                label = QLabel(display_label)
+                _, type_hint = self._parse_argparse_definition(definition_text)
+                default_value = self.config.get('Arguments', key, fallback='')
+                editor, _ = self._create_editor_for_value(key, default_value, type_hint=type_hint)
+                self.config_layout.addWidget(label, start_row + target_row_offset, target_col * 2)
+                self.config_layout.addWidget(editor, start_row + target_row_offset, target_col * 2 + 1)
+                self.editors[('Arguments', key)] = editor
+            return start_row + rows_per_col
+        else:
+            # Fallback to old argN logic
+            num_args = len(section_items)
+            rows_per_col = (num_args + num_columns - 1) // num_columns
+            for i, (key, value) in enumerate(section_items):
+                target_col = i // rows_per_col
+                target_row_offset = i % rows_per_col
+                label_text = self.config.get('Labels', key, fallback=key)
+                clean_label, type_hint = self._parse_label(label_text)
+                editor, _ = self._create_editor_for_value(key, value, type_hint=type_hint)
+                label = QLabel(clean_label)
+                self.config_layout.addWidget(label, start_row + target_row_offset, target_col * 2)
+                self.config_layout.addWidget(editor, start_row + target_row_offset, target_col * 2 + 1)
+                self.editors[('Arguments', key)] = editor
+            return start_row + rows_per_col
 
     def _load_and_build_ui(self, file_path: pathlib.Path):
         """Clears the current UI and builds a new one from the given INI file."""
@@ -853,6 +876,19 @@ class MainWindow(QMainWindow):
             return clean_label, type_hint
         return label_text, None
 
+    def _parse_argparse_definition(self, text: str) -> tuple[str | None, str | None]:
+        """Parses '--flag (type)' to get the flag and type hint."""
+        flag_pattern = r"^\s*(?P<flag>--?[\w-]+)"
+        flag_match = re.match(flag_pattern, text)
+        flag = flag_match.group('flag') if flag_match else None
+
+        # This pattern now supports list types, e.g., (list[int])
+        type_pattern = r"\((list\[\w+\]|integer|float|boolean|filename)\)"
+        type_match = re.search(type_pattern, text, re.IGNORECASE)
+        type_hint = type_match.group(1).strip().lower() if type_match else None
+
+        return flag, type_hint
+
     def _create_editor_for_value(self, key: str, value: str, type_hint: str | None = None) -> tuple[QWidget, str]:
         """Creates the appropriate editor widget, prioritizing the type_hint if provided."""
         # Special case: the script_file_name key should always be a filename editor.
@@ -876,6 +912,18 @@ class MainWindow(QMainWindow):
                             final_type = 'string'
 
         # Create the widget based on the determined type
+        if final_type and final_type.startswith("list["):
+            editor = QLineEdit(value)
+            editor.textChanged.connect(lambda: self._set_dirty(True))
+            # Provide a helpful tooltip based on the inner type
+            inner_type_match = re.search(r"list\[(\w+)\]", final_type)
+            inner_type = inner_type_match.group(1) if inner_type_match else "items"
+            if inner_type == 'file':
+                editor.setToolTip(f"A comma-separated list of files.\nYou can also use wildcards (e.g., data/*.csv).")
+            else:
+                editor.setToolTip(f"A comma-separated list of {inner_type}s (e.g., 1, 2, 3).")
+            return editor, final_type
+
         if final_type == "boolean":
             editor = QCheckBox()
             editor.stateChanged.connect(lambda: self._set_dirty(True))
@@ -940,31 +988,26 @@ class MainWindow(QMainWindow):
         self._log_message(current_widget, "\n" + "="*60, bold=True)
         self._log_message(current_widget, f"--- Starting new run at: {now} ---", bold=True)
 
+        executable = sys.executable
+
         # --- Handle background (detached) execution ---
         if self.run_in_background:
             python_exe_path = pathlib.Path(sys.executable)
-            executable = str(python_exe_path.with_name('pythonw.exe'))
+            pythonw_exe = str(python_exe_path.with_name('pythonw.exe'))
 
-            if not pathlib.Path(executable).exists():
+            if not pathlib.Path(pythonw_exe).exists():
                 self._log_message(current_widget, f'<font color="orange">Warning: pythonw.exe not found. Launching attached process with python.exe instead.</font>')
                 # Fall through to the normal (attached) execution path below
             else:
+                executable = pythonw_exe
                 self._log_message(current_widget, '<font color="red">Starting script in background with pythonw.exe. Output will not be captured.</font>')
-                quoted_args = [f'"{arg}"' if ' ' in arg else arg for arg in args]
-                command_str = f"\"{executable}\" \"{script_path}\" {' '.join(quoted_args)}"
-                self._log_message(current_widget, f"$ {command_str}\n", color="#666666")
-
+                self._log_command_string(current_widget, executable, script_path, args)
                 QProcess.startDetached(executable, [str(script_path)] + args)
                 self.statusBar().showMessage(f"Launched '{script_path.name}' in background.", 4000)
-                # Since we are detached, the run is "finished" from the GUI's perspective.
-                # We don't track the process, so we just return.
                 return
 
         # --- Handle normal (attached) execution ---
-        executable = sys.executable
-        quoted_args = [f'"{arg}"' if ' ' in arg else arg for arg in args]
-        command_str = f"\"{executable}\" \"{script_path}\" {' '.join(quoted_args)}"
-        self._log_message(current_widget, f"$ {command_str}\n", color="#666666")
+        self._log_command_string(current_widget, executable, script_path, args)
 
         process = QProcess(self)
         self.tab_process_map[current_widget] = process
@@ -983,6 +1026,12 @@ class MainWindow(QMainWindow):
         current_index = self.tab_widget.currentIndex()
         self.tab_widget.setTabText(current_index, script_path.name)
         self.update_button_states()
+
+    def _log_command_string(self, widget: QTextEdit, executable: str, script_path: pathlib.Path, args: list[str]):
+        """Constructs and logs the full command string being executed."""
+        quoted_args = [f'"{arg}"' if ' ' in arg else arg for arg in args]
+        command_str = f"\"{executable}\" \"{script_path}\" {' '.join(quoted_args)}"
+        self._log_message(widget, f"$ {command_str}\n", color="#666666")
 
 
 if __name__ == "__main__":
