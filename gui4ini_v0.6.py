@@ -6,6 +6,9 @@ import resources_rc  # Import the compiled resources
 import re
 from datetime import datetime
 from PySide6.QtCore import QProcess, Qt
+
+__version__ = "0.6.0"
+APP_NAME = "Guini"
 from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -126,7 +129,7 @@ class MainWindow(QMainWindow):
 
         # --- App Settings Handling ---
         self.script_dir = pathlib.Path(__file__).parent.resolve()
-        self.settings_file = self.script_dir / "gui4ini_v0.6.ini"
+        self.settings_file = self.script_dir / "guini.ini"
         self.app_settings = configparser.ConfigParser()
         self._load_app_settings()  # This will create the file if it doesn't exist
 
@@ -135,7 +138,7 @@ class MainWindow(QMainWindow):
         self.run_in_background = self.app_settings.getboolean(self.SETTINGS_SECTION, 'run_in_background', fallback=False)
         # --- End App Settings ---
 
-        self.setWindowTitle("INI Script Runner")
+        self.setWindowTitle(f"{APP_NAME} v{__version__}")
 
         if self.remember_window_size:
             width = self.app_settings.getint('Settings', 'window_width', fallback=600)
@@ -299,7 +302,7 @@ class MainWindow(QMainWindow):
         title = self.windowTitle()
         if is_dirty and not title.endswith("*"):
             self.setWindowTitle(title + "*")
-        elif not is_dirty and title.endswith("*"):
+        elif not is_dirty and "*" in title:
             self.setWindowTitle(title[:-1])
 
         # Also update the save button's state.
@@ -710,7 +713,8 @@ class MainWindow(QMainWindow):
         for key, option_obj in section_items:
             value = option_obj.value
             if self.config.has_section('Labels'):
-                label_text = self.config.get('Labels', key, fallback=key)
+                # Using str() correctly handles both Option objects and string fallbacks
+                label_text = str(self.config.get('Labels', key, fallback=key))
             else:
                 label_text = key
             clean_label, type_hint = self._parse_label(label_text)
@@ -758,7 +762,8 @@ class MainWindow(QMainWindow):
                 target_row_offset = i % rows_per_col
                 value = option_obj.value
                 if self.config.has_section('Labels'):
-                    label_text = self.config.get('Labels', key, fallback=key)
+                    # Using str() correctly handles both Option objects and string fallbacks
+                    label_text = str(self.config.get('Labels', key, fallback=key))
                 else:
                     label_text = key
                 clean_label, type_hint = self._parse_label(label_text)
@@ -780,7 +785,7 @@ class MainWindow(QMainWindow):
         self.config_file = file_path  #  This is the currently loaded SCRIPT config
         self.reload_button.setEnabled(True)
         self.reload_action.setEnabled(True)
-        self.setWindowTitle(f"INI Script Runner - {self.config_file.name}")
+        self.setWindowTitle(f"{APP_NAME} v{__version__} - {self.config_file.name}")
         self._clear_config_layout()
         self.editors.clear()
 
