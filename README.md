@@ -4,12 +4,11 @@
     <img src="docs/imgs/Guini - Logo.png" height="400">
 </p>
 
-## Current Stable Version: *v0.5*
+See the [**Changelog**](CHANGELOG.md) for version history and release notes.
 
 ## Table of Contents
 
 - [Guini: Graphical User Interface (GUI) for INI files](#guini-graphical-user-interface-gui-for-ini-files)
-  - [Current Stable Version: *v0.5*](#current-stable-version-v05)
   - [Table of Contents](#table-of-contents)
   - [Description](#description)
   - [Usage](#usage)
@@ -23,7 +22,6 @@
     - [Example 2 GUI - Use with `matplotlib`](#example-2-gui---use-with-matplotlib)
   - [Future developments](#future-developments)
     - [TO-DO List](#to-do-list)
-    - [List of Current Features](#list-of-current-features)
     - [List of Features to add](#list-of-features-to-add)
   - [FAQ](#faq)
 
@@ -36,7 +34,7 @@ It does two main things:
 1. Create a GUI from a `*.ini` file with arbiratry number of arguments. It dynamically adjust window size and argument types for better user experience.
 2. Run a *user-defined* python script with the arguments of the GUI. The output of the scripts is shown in the *Output* part of the GUI.
 
-For instance following GUI (v0.6)
+For instance the following GUI (v0.6)
 
 <p align="center">
     <img src="docs/imgs/Screenshot v0p6.png" alt="Screenshot v0p6" height="500">
@@ -235,24 +233,10 @@ arg7 = coef order 4 (Float)
 * [x] Test with multicore scripts
 * [ ] Test in a bootstrap mode: add guini inside the  `if __name__ == "__main__":` part, and the the script run it from within.
 
-### List of Current Features
-
-* [x] Select the `*.ini` file to be loaded.
-* [x] Reconize `filepath` as an option to have `File->Open`
-* [x] (Maybe) a dedicated section for itself inside the `*.ini` file with a few option. Suggestions:
-  * 2 columns
-  * detached output display
-  * font size for display
-* [x] (Maybe) use `guini.ini` to save parameters of guini only.
-* [x] Run multiple instances of the python script
-* [x] Add option to reload `*.ini`
-
 ### List of Features to add
 
 * [ ] Use `pytest` and Github actions
-* [ ] possibility to run in the background with pythonw
 * [ ] Update Screenshots for v0.5
-* [ ] Add tool tips for variable type of arguments
 * [ ] Installation using `pip`
 * [ ] Recognize list of numbers
 * [ ] Reconize list of Files
