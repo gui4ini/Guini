@@ -7,6 +7,9 @@
 
 # Now, specify the files you want to keep.
 !.git*
+!requirements.txt
+!environment.yml
+!LICENSE
 !**/*.py
 !**/*.md
 !**/*.ini
