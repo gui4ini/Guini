@@ -20,9 +20,6 @@ See the [**Changelog**](CHANGELOG.md) for version history and release notes.
     - [Example 1 GUI](#example-1-gui)
     - [Example 2 `*.ini` file - Use with `matplotlib`](#example-2-ini-file---use-with-matplotlib)
     - [Example 2 GUI - Use with `matplotlib`](#example-2-gui---use-with-matplotlib)
-  - [Future developments](#future-developments)
-    - [TO-DO List](#to-do-list)
-    - [List of Features to add](#list-of-features-to-add)
   - [FAQ](#faq)
 
 ## Description
@@ -224,23 +221,6 @@ arg7 = coef order 4 (Float)
     <img src="docs/imgs/Screenshot v0p3 with matplotlib.png" height="400">
 </p>
 
-
-## Future developments
-
-
-### TO-DO List
-
-* [x] Test with multicore scripts
-* [ ] Test in a bootstrap mode: add guini inside the  `if __name__ == "__main__":` part, and the the script run it from within.
-
-### List of Features to add
-
-* [ ] Use `pytest` and Github actions
-* [ ] Update Screenshots for v0.5
-* [ ] Installation using `pip`
-* [ ] Recognize list of numbers
-* [ ] Reconize list of Files
-* [ ] Add buttons to Add/Remove/Edit keys, which will then be added to the `*.ini` file.
 
 ## FAQ
 
