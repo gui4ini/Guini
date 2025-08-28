@@ -1,11 +1,21 @@
+# This is the environment configuration for Guini
+# It specifies the conda environment settings
+# It includes all necessary dependencies for the Guini application
+# To create the environment, use the following command:
+# conda env create -f environment.yml
+# To activate the environment, use the following command:
+# conda activate guini-env
 name: guini-env
 channels:
   - conda-forge
   - defaults
 dependencies:
-  - python>=3.9
+  - python=3.12
   - pyside6
   - configupdater
+# For the examples in the folder script, we will need the packages
+  - numpy
+  - matplotlib
   # If you had a pip-only package, you would add it like this:
   # - pip:
   #   - some-pip-only-package
