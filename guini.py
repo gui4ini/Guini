@@ -13,13 +13,14 @@ if __name__ == "__main__":
         script_dir = pathlib.Path(__file__).parent.resolve()
         # Construct the full path to the target application script
         # target_script_path = script_dir / "Past Versions\gui4ini_v0.5.py"
-        target_script_path = script_dir / "gui4ini_v0.6.py"
+        script_name = "gui4ini_v0.7.py"
+        target_script_path = script_dir / script_name
 
         # Check if the target script actually exists before trying to run it
         if not target_script_path.exists():
             # Provide a clear error message to the user
             error_message = (
-                f"Error: The main application file 'gui4ini_v_0.5.py' was not found in the directory:\n"
+                f"Error: The main application file '{script_name}' was not found in the directory:\n"
                 f"{script_dir}"
             )
             print(error_message, file=sys.stderr)
@@ -31,9 +32,9 @@ if __name__ == "__main__":
 
     except subprocess.CalledProcessError as e:
         # This will catch errors if the target script exits with a non-zero status code
-        print(f"The application 'gui4ini_v0.5.py' exited with an error (code {e.returncode}).", file=sys.stderr)
+        print(f"The application '{script_name}' exited with an error (code {e.returncode}).", file=sys.stderr)
         sys.exit(e.returncode)
     except Exception as e:
         # Catch any other unexpected errors during launch
-        print(f"An unexpected error occurred while trying to launch 'gui4ini_v0.5.py':\n{e}", file=sys.stderr)
+        print(f"An unexpected error occurred while trying to launch '{script_name}':\n{e}", file=sys.stderr)
         sys.exit(1)
