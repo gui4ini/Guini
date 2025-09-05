@@ -15,6 +15,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * [ ] UI controls to add, remove, or edit keys directly, updating the INI file.
 * [x] Open `.ini` file in a text editor.
 * [ ] Compatible to Linux and iOS(?)
+* [x] Add a "Recent Files" menu?
+* [ ] Add increment buttons to numeric fields.
+* [x] Searcheable output.
 
 ### To Be Updated
 
