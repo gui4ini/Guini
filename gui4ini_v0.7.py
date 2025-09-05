@@ -52,6 +52,7 @@ from PySide6.QtWidgets import (
     QSpinBox,
     QMessageBox,
 )
+from PySide6.QtCore import Signal
 from PySide6.QtGui import (  # noqa
     QPalette,
     QColor,
@@ -61,6 +62,7 @@ from PySide6.QtGui import (  # noqa
     QKeySequence,
     QCloseEvent,
     QIcon,
+    QTextDocument,
     QPixmap,
     QDesktopServices,
     QTextCursor,  # noqa
@@ -100,6 +102,95 @@ class FileNameWidget(QWidget):
 
     def text(self) -> str:
         return self.line_edit.text()
+
+
+class SearchWidget(QWidget):
+    """A widget for finding text within a QTextEdit."""
+
+    # Signal to indicate the widget should be closed/hidden
+    closed = Signal()
+
+    def __init__(self, parent: QWidget | None = None):
+        super().__init__(parent)
+        self.target_widget: QTextEdit | None = None
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(5, 5, 5, 5)
+
+        self.search_input = QLineEdit()
+        self.search_input.setPlaceholderText("Find...")
+        self.search_input.returnPressed.connect(self.find_next)
+
+        self.next_button = QPushButton("Next")
+        self.next_button.clicked.connect(self.find_next)
+        self.prev_button = QPushButton("Previous")
+        self.prev_button.clicked.connect(self.find_previous)
+
+        self.case_checkbox = QCheckBox("Case-sensitive")
+
+        close_button = QPushButton("✕")
+        close_button.setToolTip("Close search bar")
+        close_button.setFixedSize(24, 24)
+        close_button.clicked.connect(self.closed.emit)
+
+        layout.addWidget(QLabel("Find:"))
+        layout.addWidget(self.search_input)
+        layout.addWidget(self.next_button)
+        layout.addWidget(self.prev_button)
+        layout.addWidget(self.case_checkbox)
+        layout.addStretch()
+        layout.addWidget(close_button)
+
+    def set_target_widget(self, widget: QTextEdit):
+        """Sets the QTextEdit that this widget will search in."""
+        self.target_widget = widget
+
+    def find(self, backwards: bool = False):
+        """Finds the next or previous occurrence of the search text."""
+        if not self.target_widget:
+            return
+
+        text = self.search_input.text()
+        if not text:
+            return
+
+        flags = QTextDocument.FindFlag()
+        if self.case_checkbox.isChecked():
+            flags |= QTextDocument.FindFlag.FindCaseSensitively
+        if backwards:
+            flags |= QTextDocument.FindFlag.FindBackward
+
+        found = self.target_widget.find(text, flags)
+
+        # If not found, wrap around and search from the beginning/end
+        if not found:
+            cursor = self.target_widget.textCursor()
+            if backwards:
+                cursor.movePosition(QTextCursor.MoveOperation.End)
+            else:
+                cursor.movePosition(QTextCursor.MoveOperation.Start)
+            self.target_widget.setTextCursor(cursor)
+
+            # Try finding again from the new cursor position
+            found = self.target_widget.find(text, flags)
+
+            if found:
+                # Let the user know the search has wrapped
+                QApplication.activeWindow().statusBar().showMessage(
+                    "Search wrapped around.", 2000
+                )
+            else:
+                # Flash the input red to indicate no match even after wrapping
+                self.search_input.setStyleSheet("background-color: #ffcccc;")
+                QTimer.singleShot(
+                    500, lambda: self.search_input.setStyleSheet("")
+                )
+
+    def find_next(self):
+        self.find(backwards=False)
+
+    def find_previous(self):
+        self.find(backwards=True)
 
 
 class SettingsDialog(QDialog):
@@ -400,6 +491,12 @@ class MainWindow(QMainWindow):
         self.main_layout.addLayout(button_layout_1)
         self.main_layout.addLayout(button_layout_2)
 
+        # --- Search Widget (initially hidden) ---
+        self.search_widget = SearchWidget()
+        self.search_widget.closed.connect(self.search_widget.hide)
+        self.search_widget.hide()
+        self.main_layout.addWidget(self.search_widget)
+
         # --- Tabbed Output Area ---
         self.tab_widget = QTabWidget()
         self.tab_widget.setTabsClosable(self.multi_tab_enabled)
@@ -538,6 +635,11 @@ class MainWindow(QMainWindow):
         self.settings_action = QAction("&Settings...", self)
         self.settings_action.triggered.connect(self.open_settings_dialog)
 
+        self.find_action = QAction("&Find...", self)
+        self.find_action.setToolTip("Find text in the output window.")
+        self.find_action.setShortcut(QKeySequence.StandardKey.Find)
+        self.find_action.triggered.connect(self.show_search_widget)
+
     def _create_menus(self):
         """Creates the main menu bar."""
         file_menu = self.menuBar().addMenu("&File")
@@ -552,6 +654,8 @@ class MainWindow(QMainWindow):
 
         edit_menu = self.menuBar().addMenu("&Edit")
         edit_menu.addAction(self.clear_output_action)
+        edit_menu.addSeparator()
+        edit_menu.addAction(self.find_action)
         edit_menu.addSeparator()
         edit_menu.addAction(self.settings_action)
 
@@ -591,6 +695,7 @@ class MainWindow(QMainWindow):
             self.settings_action: "preferences-system",
             self.clear_output_action: "edit-clear",
             self.edit_ini_action: "document-edit",
+            self.find_action: "edit-find",
             # Buttons
             self.run_button: "media-playback-start",
             self.stop_button: "media-playback-stop",
@@ -647,6 +752,18 @@ class MainWindow(QMainWindow):
         elif reply == QMessageBox.StandardButton.Cancel:
             return False
         return True
+
+    def show_search_widget(self):
+        """Shows the search widget and focuses it."""
+        current_tab = self.tab_widget.currentWidget()
+        if isinstance(current_tab, QTextEdit):
+            self.search_widget.set_target_widget(current_tab)
+            self.search_widget.show()
+            self.search_widget.search_input.setFocus()
+        else:
+            self.statusBar().showMessage(
+                "No output tab selected to search in.", 3000
+            )
 
     def update_button_states(self):
         """Enables/disables Run/Stop buttons based on the current tab's state."""
