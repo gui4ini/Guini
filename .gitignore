@@ -5,6 +5,9 @@
 # traverse into subdirectories.
 !*/
 
+# But ignore files placed in this folder
+gitIgnored/
+
 # Now, specify the files you want to keep.
 !.git*
 !requirements.txt
