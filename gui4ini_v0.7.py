@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QGridLayout,
+    QComboBox,
     QFrame,
     QSpinBox,
     QMessageBox,
@@ -130,6 +131,20 @@ class SettingsDialog(QDialog):
         )
         form_layout.addRow(self.remember_size_checkbox)
 
+        # --- Theme Settings ---
+        theme_label = QLabel("Theme")
+        theme_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
+        form_layout.addRow(theme_label)
+        self.theme_combobox = QComboBox()
+        self.theme_combobox.addItems(["System", "Light", "Dark"])
+        self.theme_combobox.setToolTip(
+            "Set the application color theme.\n'System' follows your OS setting."
+        )
+        self.theme_combobox.setCurrentText(
+            self.settings.get("Settings", "theme", fallback="System").title()
+        )
+        form_layout.addRow("Color Theme:", self.theme_combobox)
+
         # --- Execution Settings ---
         execution_label = QLabel("Execution")
         execution_label.setStyleSheet("font-weight: bold; margin-top: 10px;")
@@ -192,6 +207,9 @@ class SettingsDialog(QDialog):
             str(self.show_icons_checkbox.isChecked()).lower(),
         )
         self.settings.set(
+            "Settings", "theme", self.theme_combobox.currentText().lower()
+        )
+        self.settings.set(
             "Settings",
             "run_in_background",
             str(self.run_background_checkbox.isChecked()).lower(),
@@ -235,6 +253,9 @@ class MainWindow(QMainWindow):
         self.show_icons = self.app_settings.getboolean(
             self.SETTINGS_SECTION, "show_icons", fallback=True
         )
+        self.theme = self.app_settings.get(
+            self.SETTINGS_SECTION, "theme", fallback="System"
+        ).lower()
         # --- End App Settings ---
 
         self.setWindowTitle(f"{APP_NAME} v{__version__}")
@@ -271,6 +292,11 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(self.central_widget)
 
         # Use a QGridLayout to allow for multiple columns
+        # Create the banner frame early to ensure it exists before _apply_theme is called.
+        self.banner_frame = QFrame()
+        banner_layout = QHBoxLayout(self.banner_frame)
+        banner_layout.setContentsMargins(5, 5, 5, 5)
+
         self.config_layout = QGridLayout()
         self.main_layout.addLayout(self.config_layout)
 
@@ -369,6 +395,7 @@ class MainWindow(QMainWindow):
         # Define and apply icons now that all buttons and actions have been created.
         self._define_icon_map()
         self._apply_icons()
+        self._apply_theme()  # Apply theme after all widgets are created
 
         # --- DETERMINE INITIAL SCRIPT CONFIG FILE ---
         # This is the file with [Command], [Arguments], etc.
@@ -538,6 +565,27 @@ class MainWindow(QMainWindow):
                 widget.setIcon(QIcon.fromTheme(icon_name))
             else:
                 widget.setIcon(QIcon())  # Set an empty icon to remove it
+
+    def _apply_theme(self):
+        """Applies the selected color theme to the application."""
+        if self.theme == "dark":
+            palette = create_dark_palette()
+            self.banner_frame.setStyleSheet(
+                "QFrame { background-color: #7D7D7D; border-radius: 5px; }"
+            )
+        elif self.theme == "light":
+            palette = create_light_palette()
+            self.banner_frame.setStyleSheet(
+                "QFrame { background-color: transparent; }"
+            )
+        else:  # System theme
+            palette = QApplication.style().standardPalette()
+            self.banner_frame.setStyleSheet(
+                "QFrame { background-color: transparent; }"
+            )
+
+        self.central_widget.setPalette(palette)
+        self.menuBar().setPalette(palette)
 
     def _prompt_to_save_if_dirty(self) -> bool:
         """Checks for unsaved changes and prompts the user. Returns False if action is cancelled."""
@@ -861,19 +909,11 @@ class MainWindow(QMainWindow):
 
     def open_settings_dialog(self):
         """Opens the settings dialog to allow user configuration."""
-        # Store old values to check for changes that require action
-        old_multi_tab = self.app_settings.getboolean(
-            self.SETTINGS_SECTION, "multi_tab_mode", fallback=False
-        )
-        old_arg_cols = self.app_settings.getint(
-            self.SETTINGS_SECTION, "argument_columns", fallback=1
-        )
-        old_run_background = self.app_settings.getboolean(
-            self.SETTINGS_SECTION, "run_in_background", fallback=False
-        )
-        old_show_icons = self.app_settings.getboolean(
-            self.SETTINGS_SECTION, "show_icons", fallback=True
-        )
+        # Create a deep copy of the settings to detect any changes
+        old_settings = {
+            section: dict(self.app_settings.items(section))
+            for section in self.app_settings.sections()
+        }
 
         dialog = SettingsDialog(self, settings_parser=self.app_settings)
 
@@ -881,56 +921,27 @@ class MainWindow(QMainWindow):
             dialog.apply_settings()
             self._save_app_settings()
 
-            new_multi_tab = self.app_settings.getboolean(
-                self.SETTINGS_SECTION, "multi_tab_mode", fallback=False
-            )
-            new_arg_cols = self.app_settings.getint(
-                self.SETTINGS_SECTION, "argument_columns", fallback=1
-            )
-            new_show_icons = self.app_settings.getboolean(
-                self.SETTINGS_SECTION, "show_icons", fallback=True
-            )
-            new_run_background = self.app_settings.getboolean(
-                self.SETTINGS_SECTION, "run_in_background", fallback=False
-            )
+            new_settings = {
+                section: dict(self.app_settings.items(section))
+                for section in self.app_settings.sections()
+            }
 
-            # Update background run setting immediately as it requires no restart/reload
-            if old_run_background != new_run_background:
-                self.run_in_background = new_run_background
-
-            # Update icon visibility immediately if it changed
-            if old_show_icons != new_show_icons:
-                self.show_icons = new_show_icons
-                self._apply_icons()
-
-            # Check for restart-required changes
-            if old_multi_tab != new_multi_tab:
+            # If any setting has changed, prompt for a restart.
+            if old_settings != new_settings:
                 reply = QMessageBox.question(
                     self,
                     "Restart Required",
-                    "Changing the tab mode requires a restart to take full effect.\n\nRestart now?",
+                    "Settings have been changed. A restart is required for them to take effect.\n\nRestart now?",
                     QMessageBox.StandardButton.Yes
                     | QMessageBox.StandardButton.No,
                 )
                 if reply == QMessageBox.StandardButton.Yes:
                     self.restart_application()
-                return  # Don't check for other changes if we are restarting or user said no
-
-            # Check for UI-reload-required changes
-            if old_arg_cols != new_arg_cols:
-                reply = QMessageBox.question(
-                    self,
-                    "Reload Required",
-                    "Changes to the argument layout require the UI to be reloaded.\n\nReload now?",
-                    QMessageBox.StandardButton.Yes
-                    | QMessageBox.StandardButton.No,
-                )
-                if reply == QMessageBox.StandardButton.Yes:
-                    if self.config_file:
-                        self._load_and_build_ui(self.config_file)
             else:
                 QMessageBox.information(
-                    self, "Settings Saved", "Your settings have been saved."
+                    self,
+                    "Settings Saved",
+                    "Your settings have been saved and will be applied on the next restart.",
                 )
 
     def restart_application(self):
@@ -1020,18 +1031,22 @@ class MainWindow(QMainWindow):
         )
         current_row = start_row
 
-        # Add the logo as a banner at the top of the command section
+        # Add the logo as a banner at the top of the command section.
+        # The self.banner_frame is pre-created in __init__ to avoid initialization order errors.
         logo_label = QLabel()
         pixmap = QPixmap(":/logo/app_banner")  # Use the detailed banner logo
         logo_label.setPixmap(
             pixmap.scaledToHeight(
-                84, Qt.TransformationMode.SmoothTransformation
+                70, Qt.TransformationMode.SmoothTransformation
             )
         )
         logo_label.setToolTip("Guini - GUI for INI")
         logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.banner_frame.layout().addWidget(logo_label)
+
+        # Add the banner frame to the main config layout, spanning all columns
         self.config_layout.addWidget(
-            logo_label, current_row, 0, 1, num_columns * 2
+            self.banner_frame, current_row, 0, 1, num_columns * 2
         )
         current_row += 1
 
@@ -1241,6 +1256,21 @@ class MainWindow(QMainWindow):
         bold: bool = False,
     ):
         """Appends a message to the output area with optional styling."""
+        # Theme-aware color mapping
+        if color:
+            if self.theme == "dark":
+                if color == "blue":
+                    color = "#569CD6"  # A lighter, more readable blue
+                elif color == "red":
+                    color = "#F44747"  # A brighter red
+                elif color == "green":
+                    color = "#6A9955"  # A clear green
+                elif color == "#666666":
+                    color = "#999999"  # A light gray for commands
+            else:  # Light theme colors (can be adjusted if needed)
+                if color == "red":
+                    color = "#D32F2F"
+
         # Check if the scrollbar is at the bottom before we add new text.
         # This allows the user to scroll up and inspect output without being forced back down.
         scrollbar = widget.verticalScrollBar()
@@ -1543,31 +1573,54 @@ class MainWindow(QMainWindow):
         self._log_message(widget, f"$ {command_str}\n", color="#666666")
 
 
+def create_light_palette() -> QPalette:
+    palette = QPalette()
+    palette.setColor(QPalette.ColorRole.Window, QColor(240, 240, 240))
+    palette.setColor(QPalette.ColorRole.WindowText, QColor(0, 0, 0))
+    palette.setColor(QPalette.ColorRole.Base, QColor(255, 255, 255))
+    palette.setColor(QPalette.ColorRole.AlternateBase, QColor(240, 240, 240))
+    palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(255, 255, 220))
+    palette.setColor(QPalette.ColorRole.ToolTipText, QColor(0, 0, 0))
+    palette.setColor(QPalette.ColorRole.Text, QColor(0, 0, 0))
+    palette.setColor(QPalette.ColorRole.Button, QColor(240, 240, 240))
+    palette.setColor(QPalette.ColorRole.ButtonText, QColor(0, 0, 0))
+    palette.setColor(QPalette.ColorRole.BrightText, QColor(255, 0, 0))
+    palette.setColor(QPalette.ColorRole.Link, QColor(0, 0, 255))
+    palette.setColor(QPalette.ColorRole.Highlight, QColor(0, 120, 215))
+    palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
+    return palette
+
+
+def create_dark_palette() -> QPalette:
+    palette = QPalette()
+    palette.setColor(QPalette.ColorRole.Window, QColor(53, 53, 53))
+    palette.setColor(QPalette.ColorRole.WindowText, Qt.GlobalColor.white)
+    palette.setColor(QPalette.ColorRole.Base, QColor(25, 25, 25))
+    palette.setColor(QPalette.ColorRole.AlternateBase, QColor(53, 53, 53))
+    palette.setColor(QPalette.ColorRole.ToolTipBase, Qt.GlobalColor.white)
+    palette.setColor(QPalette.ColorRole.ToolTipText, Qt.GlobalColor.white)
+    palette.setColor(QPalette.ColorRole.Text, Qt.GlobalColor.white)
+    palette.setColor(QPalette.ColorRole.Button, QColor(53, 53, 53))
+    palette.setColor(QPalette.ColorRole.ButtonText, Qt.GlobalColor.white)
+    palette.setColor(QPalette.ColorRole.BrightText, Qt.GlobalColor.red)
+    palette.setColor(QPalette.ColorRole.Link, QColor(42, 130, 218))
+    palette.setColor(QPalette.ColorRole.Highlight, QColor(42, 130, 218))
+    palette.setColor(QPalette.ColorRole.HighlightedText, Qt.GlobalColor.black)
+    return palette
+
+
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
 
-    light_palette = QPalette()
-    light_palette.setColor(QPalette.ColorRole.Window, QColor(240, 240, 240))
-    light_palette.setColor(QPalette.ColorRole.WindowText, QColor(0, 0, 0))
-    light_palette.setColor(QPalette.ColorRole.Base, QColor(255, 255, 255))
-    light_palette.setColor(
-        QPalette.ColorRole.AlternateBase, QColor(240, 240, 240)
-    )
-    light_palette.setColor(
-        QPalette.ColorRole.ToolTipBase, QColor(255, 255, 220)
-    )
-    light_palette.setColor(QPalette.ColorRole.ToolTipText, QColor(0, 0, 0))
-    light_palette.setColor(QPalette.ColorRole.Text, QColor(0, 0, 0))
-    light_palette.setColor(QPalette.ColorRole.Button, QColor(240, 240, 240))
-    light_palette.setColor(QPalette.ColorRole.ButtonText, QColor(0, 0, 0))
-    light_palette.setColor(QPalette.ColorRole.BrightText, QColor(255, 0, 0))
-    light_palette.setColor(QPalette.ColorRole.Link, QColor(0, 0, 255))
-    light_palette.setColor(QPalette.ColorRole.Highlight, QColor(0, 120, 215))
-    light_palette.setColor(
-        QPalette.ColorRole.HighlightedText, QColor(255, 255, 255)
-    )
-    app.setPalette(light_palette)
+    # Set the initial palette based on settings
+    settings = configparser.ConfigParser()
+    settings.read(pathlib.Path(__file__).parent.resolve() / "guini.ini")
+    theme = settings.get("Settings", "theme", fallback="system").lower()
+    if theme == "dark":
+        app.setPalette(create_dark_palette())
+    elif theme == "light":
+        app.setPalette(create_light_palette())
 
     window = MainWindow()
     window.show()
