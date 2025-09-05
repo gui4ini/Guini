@@ -1014,141 +1014,6 @@ class MainWindow(QMainWindow):
                 widget.setParent(None)
                 widget.deleteLater()
 
-    def _build_command_section_ui(
-        self, section_items: list, start_row: int
-    ) -> int:
-        """Builds the UI for the [Command] section."""
-        num_columns = self.app_settings.getint(
-            self.SETTINGS_SECTION, "argument_columns", fallback=1
-        )
-        current_row = start_row
-
-        # Add the logo as a banner at the top of the command section.
-        # The self.banner_frame is pre-created in __init__ to avoid initialization order errors.
-        logo_label = QLabel()
-        pixmap = QPixmap(":/logo/app_banner")  # Use the detailed banner logo
-        logo_label.setPixmap(
-            pixmap.scaledToHeight(
-                70, Qt.TransformationMode.SmoothTransformation
-            )
-        )
-        logo_label.setToolTip("Guini - GUI for INI")
-        logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.banner_frame.layout().addWidget(logo_label)
-        self.banner_frame.setMaximumWidth(600)  # Set a max width for the banner
-
-        # Add the banner frame to the main config layout, spanning all columns
-        self.config_layout.addWidget(
-            self.banner_frame, current_row, 0, 1, num_columns * 2
-        )
-        current_row += 1
-
-        for key, option_obj in section_items:
-            value = option_obj.value
-            if self.config.has_section("Labels"):
-                # get() can return an Option object or a string fallback. We need to handle both.
-                label_text_or_obj = self.config.get("Labels", key, fallback=key)
-                label_text = (
-                    label_text_or_obj.value
-                    if hasattr(label_text_or_obj, "value")
-                    else label_text_or_obj
-                )
-            else:
-                label_text = key
-            clean_label, type_hint = self._parse_label(label_text)
-            editor, _ = self._create_editor_for_value(
-                key, value, type_hint=type_hint
-            )
-            label = QLabel(clean_label)
-            self.config_layout.addWidget(label, current_row, 0)
-
-            self.config_layout.addWidget(
-                editor, current_row, 1, 1, num_columns * 2 - 1
-            )
-            # The script_file_name widget should not span multiple columns,
-            # as its default size can force an undesirably large minimum window width.
-            # We set its column span to 1.
-            column_span = 1
-            self.config_layout.addWidget(editor, current_row, 1, 1, column_span)
-
-            self.editors[("Command", key)] = editor
-            current_row += 1
-        return current_row
-
-    def _build_arguments_section_ui(
-        self, section_items: list, start_row: int
-    ) -> int:
-        """Builds the UI for the [Arguments] section with multiple columns."""
-        num_columns = self.app_settings.getint(
-            self.SETTINGS_SECTION, "argument_columns", fallback=1
-        )
-
-        if self.config.has_section("ArgParse"):
-            # New ArgParse logic
-            arg_definitions = list(self.config.items("ArgParse"))
-            num_args = len(arg_definitions)
-            rows_per_col = (num_args + num_columns - 1) // num_columns
-
-            for i, (key, definition_obj) in enumerate(arg_definitions):
-                target_col = i // rows_per_col
-                target_row_offset = i % rows_per_col
-                definition_text = definition_obj.value
-                display_label = key.replace("_", " ").title()
-                label = QLabel(display_label)
-                _, type_hint = self._parse_argparse_definition(definition_text)
-                # Get the option object from the [Arguments] section
-                default_value_obj = self.config.get(
-                    "Arguments", key, fallback=None
-                )
-                # Extract the string value, or use an empty string as a fallback
-                default_value = (
-                    default_value_obj.value if default_value_obj else ""
-                )
-                editor, _ = self._create_editor_for_value(
-                    key, default_value, type_hint=type_hint
-                )
-                self.config_layout.addWidget(
-                    label, start_row + target_row_offset, target_col * 2
-                )
-                self.config_layout.addWidget(
-                    editor, start_row + target_row_offset, target_col * 2 + 1
-                )
-                self.editors[("Arguments", key)] = editor
-            return start_row + rows_per_col
-        else:
-            # Fallback to old argN logic
-            num_args = len(section_items)
-            rows_per_col = (num_args + num_columns - 1) // num_columns
-            for i, (key, option_obj) in enumerate(section_items):
-                target_col = i // rows_per_col
-                target_row_offset = i % rows_per_col
-                value = option_obj.value
-                if self.config.has_section("Labels"):
-                    # get() can return an Option object or a string fallback. We need to handle both.
-                    label_text_or_obj = self.config.get(
-                        "Labels", key, fallback=key
-                    )
-                    label_text = (
-                        label_text_or_obj.value
-                        if hasattr(label_text_or_obj, "value")
-                        else label_text_or_obj
-                    )
-                else:
-                    label_text = key
-                clean_label, type_hint = self._parse_label(label_text)
-                editor, _ = self._create_editor_for_value(
-                    key, value, type_hint=type_hint
-                )
-                label = QLabel(clean_label)
-                self.config_layout.addWidget(
-                    label, start_row + target_row_offset, target_col * 2
-                )
-                self.config_layout.addWidget(
-                    editor, start_row + target_row_offset, target_col * 2 + 1
-                )
-                self.editors[("Arguments", key)] = editor
-            return start_row + rows_per_col
-
     def _load_and_build_ui(self, file_path: pathlib.Path):
         """Clears the current UI and builds a new one from the given INI file."""
         # Add robust error handling for file loading
@@ -1201,19 +1066,11 @@ class MainWindow(QMainWindow):
         # num_columns = self.app_settings.getint('Settings', 'argument_columns', fallback=1)
         current_row = 0
 
-        sections_to_display = ["Command", "Arguments"]
-        for section_name in sections_to_display:
-            if self.config.has_section(section_name):
-                if section_name == "Arguments":
-                    items = list(self.config.items(section_name))
-                    current_row = self._build_arguments_section_ui(
-                        items, current_row
-                    )
-                elif section_name == "Command":
-                    items = list(self.config.items(section_name))
-                    current_row = self._build_command_section_ui(
-                        items, current_row
-                    )
+        if self.config.has_section("Command"):
+            current_row = self._build_command_section_ui(current_row)
+
+        if self.config.has_section("Arguments"):
+            current_row = self._build_arguments_section_ui(current_row)
 
         # Final check to ensure the critical command section was loaded
         if not self.config.has_section("Command"):
@@ -1222,6 +1079,117 @@ class MainWindow(QMainWindow):
 
         # After loading, the state is clean
         self._set_dirty(False)
+
+    def _build_command_section_ui(self, start_row: int) -> int:
+        """Builds the UI for the [Command] section."""
+        num_columns = self.app_settings.getint(
+            self.SETTINGS_SECTION, "argument_columns", fallback=1
+        )
+        current_row = start_row
+
+        # Add the logo as a banner at the top of the command section.
+        logo_label = QLabel()
+        pixmap = QPixmap(":/logo/app_banner")
+        logo_label.setPixmap(
+            pixmap.scaledToHeight(
+                70, Qt.TransformationMode.SmoothTransformation
+            )
+        )
+        logo_label.setToolTip("Guini - GUI for INI")
+        logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.banner_frame.layout().addWidget(logo_label)
+        self.banner_frame.setMaximumWidth(600)
+
+        self.config_layout.addWidget(
+            self.banner_frame, current_row, 0, 1, num_columns * 2
+        )
+        current_row += 1
+
+        section_items = list(self.config.items("Command"))
+        for key, option_obj in section_items:
+            value = option_obj.value
+            if self.config.has_section("Labels"):
+                label_text_or_obj = self.config.get("Labels", key, fallback=key)
+                label_text = (
+                    label_text_or_obj.value
+                    if hasattr(label_text_or_obj, "value")
+                    else label_text_or_obj
+                )
+            else:
+                label_text = key
+
+            clean_label, type_hint = self._parse_label(label_text)
+            editor, _ = self._create_editor_for_value(
+                key, value, type_hint=type_hint
+            )
+            label = QLabel(clean_label)
+            self.config_layout.addWidget(label, current_row, 0)
+
+            column_span = (
+                1 if key == "script_file_name" else num_columns * 2 - 1
+            )
+            self.config_layout.addWidget(editor, current_row, 1, 1, column_span)
+
+            self.editors[("Command", key)] = editor
+            current_row += 1
+        return current_row
+
+    def _build_arguments_section_ui(self, start_row: int) -> int:
+        """Builds the UI for the [Arguments] section with multiple columns."""
+        num_columns = self.app_settings.getint(
+            self.SETTINGS_SECTION, "argument_columns", fallback=1
+        )
+
+        if self.config.has_section("ArgParse"):
+            items_to_build = list(self.config.items("ArgParse"))
+            is_argparse = True
+        else:
+            items_to_build = list(self.config.items("Arguments"))
+            is_argparse = False
+
+        num_items = len(items_to_build)
+        rows_per_col = (num_items + num_columns - 1) // num_columns
+
+        for i, (key, option_obj) in enumerate(items_to_build):
+            if is_argparse:
+                definition_text = option_obj.value
+                display_label = key.replace("_", " ").title()
+                _, type_hint = self._parse_argparse_definition(definition_text)
+                default_value_obj = self.config.get(
+                    "Arguments", key, fallback=None
+                )
+                value = default_value_obj.value if default_value_obj else ""
+            else:  # Fallback to old argN logic
+                value = option_obj.value
+                if self.config.has_section("Labels"):
+                    label_text_or_obj = self.config.get(
+                        "Labels", key, fallback=key
+                    )
+                    label_text = (
+                        label_text_or_obj.value
+                        if hasattr(label_text_or_obj, "value")
+                        else label_text_or_obj
+                    )
+                else:
+                    label_text = key
+                display_label, type_hint = self._parse_label(label_text)
+
+            editor, _ = self._create_editor_for_value(
+                key, value, type_hint=type_hint
+            )
+            label = QLabel(display_label)
+
+            target_col = i // rows_per_col
+            target_row_offset = i % rows_per_col
+            self.config_layout.addWidget(
+                label, start_row + target_row_offset, target_col * 2
+            )
+            self.config_layout.addWidget(
+                editor, start_row + target_row_offset, target_col * 2 + 1
+            )
+            self.editors[("Arguments", key)] = editor
+
+        return start_row + rows_per_col
 
     def clear_output(self):
         """Clears the output text area of the current tab."""
