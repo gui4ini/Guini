@@ -1,3 +1,25 @@
+"""
+Guini - A GUI for INI files.
+
+This script creates a dynamic graphical user interface from a user-provided
+INI file. It allows users to modify script arguments, save them back to the
+INI, and execute the target script, capturing its output.
+
+Architecture Overview:
+----------------------
+- MainWindow: The main application class inheriting from QMainWindow. It
+  orchestrates all UI components, manages file I/O, and handles script
+  execution via QProcess.
+- UI Generation: The UI is built dynamically by `_load_and_build_ui`, which
+  parses the INI file. It uses helper methods like `_build_command_section_ui`
+  and `_build_arguments_section_ui` to create widgets.
+- Widget Creation: `_create_editor_for_value` is a factory method that determines
+  the appropriate widget (e.g., QLineEdit, QCheckBox, FileNameWidget) based on
+  type hints in the INI or by inferring the type from the value.
+- Settings: Application-wide settings (theme, window size) are managed by the
+  `SettingsDialog` and stored in a separate `guini.ini` file.
+"""
+
 import sys
 import configparser
 import pathlib
@@ -261,6 +283,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle(f"{APP_NAME} v{__version__}")
 
         if self.remember_window_size:
+            # fmt: off
             width = self.app_settings.getint(
                 "Settings", "window_width", fallback=600
             )
@@ -268,6 +291,7 @@ class MainWindow(QMainWindow):
                 "Settings", "window_height", fallback=500
             )
             self.resize(width, height)
+            # fmt: on
         else:
             self.resize(600, 500)
 
@@ -519,6 +543,8 @@ class MainWindow(QMainWindow):
         file_menu = self.menuBar().addMenu("&File")
         file_menu.addAction(self.open_action)
         file_menu.addAction(self.edit_ini_action)
+        self.recent_files_menu = file_menu.addMenu("Recent Files")
+        file_menu.addSeparator()
         file_menu.addAction(self.save_action)
         file_menu.addAction(self.reload_action)
         file_menu.addSeparator()
@@ -528,6 +554,31 @@ class MainWindow(QMainWindow):
         edit_menu.addAction(self.clear_output_action)
         edit_menu.addSeparator()
         edit_menu.addAction(self.settings_action)
+
+        self._update_recent_files_menu()
+
+    def _update_recent_files_menu(self):
+        """Clears and repopulates the 'Recent Files' menu."""
+        self.recent_files_menu.clear()
+        recent_files = self._get_recent_files()
+        if not recent_files:
+            self.recent_files_menu.setEnabled(False)
+            return
+
+        self.recent_files_menu.setEnabled(True)
+        for path_str in recent_files:
+            path = pathlib.Path(path_str)
+            # Use a lambda with a default argument to capture the current path
+            action = QAction(path.name, self)
+            action.setToolTip(path_str)
+            action.triggered.connect(
+                lambda checked=False, p=path: self._open_recent_file(p)
+            )
+            self.recent_files_menu.addAction(action)
+        self.recent_files_menu.addSeparator()
+        self.recent_files_menu.addAction(
+            "Clear Recent Files", self._clear_recent_files
+        )
 
     def _define_icon_map(self):
         """Defines the mapping from widgets to their standard icon names."""
@@ -980,6 +1031,41 @@ class MainWindow(QMainWindow):
                 ),
             )
 
+    def _open_recent_file(self, file_path: pathlib.Path):
+        """Loads a file from the 'Recent Files' menu."""
+        if not self._prompt_to_save_if_dirty():
+            return
+        self._load_and_build_ui(file_path)
+
+    def _reload_current_file(self):
+        """Reloads the current INI file, prompting to save if dirty."""
+        if not self.config_file:
+            self.statusBar().showMessage(
+                "No INI file is currently loaded.", 3000
+            )
+            return
+
+        if not self._prompt_to_save_if_dirty():
+            return  # User cancelled
+
+        self.statusBar().showMessage(
+            f"Reloading {self.config_file.name}...", 2000
+        )
+        self._load_and_build_ui(self.config_file)
+
+        # After reloading the UI, the QTextEdit might scroll to the top.
+        # This ensures the view remains at the bottom, where the last output is.
+        # We use a QTimer to schedule this action for after the layout has settled.
+        current_widget = self.tab_widget.currentWidget()
+        if isinstance(current_widget, QTextEdit):
+            # Schedule the scroll to happen after the current event processing is finished.
+            QTimer.singleShot(
+                0,
+                lambda: current_widget.verticalScrollBar().setValue(
+                    current_widget.verticalScrollBar().maximum()
+                ),
+            )
+
     def _open_file_dialog(
         self, line_edit_widget: QLineEdit, file_filter: str = "All Files (*)"
     ):
@@ -1004,6 +1090,37 @@ class MainWindow(QMainWindow):
         )
         if file_path:
             self._load_and_build_ui(pathlib.Path(file_path))
+
+    def _get_recent_files(self) -> list[str]:
+        """Retrieves the list of recent file paths from settings."""
+        recent = self.app_settings.get("Settings", "recent_files", fallback="")
+        return [path for path in recent.split(";") if path]
+
+    def _add_to_recent_files(self, file_path: pathlib.Path):
+        """Adds a file path to the top of the recent files list."""
+        path_str = str(file_path.resolve())
+        recent_files = self._get_recent_files()
+
+        # Remove if it already exists to move it to the top
+        if path_str in recent_files:
+            recent_files.remove(path_str)
+
+        recent_files.insert(0, path_str)
+        # Keep the list at a manageable size (e.g., 10)
+        recent_files = recent_files[:10]
+
+        self.app_settings.set(
+            "Settings", "recent_files", ";".join(recent_files)
+        )
+        self._save_app_settings()
+        self._update_recent_files_menu()
+
+    def _clear_recent_files(self):
+        """Clears the recent files list from settings."""
+        self.app_settings.set("Settings", "recent_files", "")
+        self._save_app_settings()
+        self._update_recent_files_menu()
+        self.statusBar().showMessage("Recent files list cleared.", 3000)
 
     def _clear_config_layout(self):
         """Removes all widgets from the config layout."""
@@ -1061,6 +1178,7 @@ class MainWindow(QMainWindow):
             self.SETTINGS_SECTION, "last_loaded_ini", path_to_save
         )
         self._save_app_settings()
+        self._add_to_recent_files(self.config_file)
         # --- END SAVE ---
 
         # num_columns = self.app_settings.getint('Settings', 'argument_columns', fallback=1)
