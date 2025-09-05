@@ -304,35 +304,18 @@ class MainWindow(QMainWindow):
         self.setStatusBar(QStatusBar(self))
 
         # --- Button Layout ---
-        button_layout = QHBoxLayout()
-        self.run_button = QPushButton("Run")
-        self.run_button.setToolTip(
-            "Execute the script with the current INI settings."
-        )
-        self.run_button.clicked.connect(self.run_script)
-        self.stop_button = QPushButton("Stop")
-        self.stop_button.setToolTip("Terminate the currently running script.")
-        self.stop_button.clicked.connect(self.stop_script)
-        self.stop_button.setEnabled(False)
-        button_layout.addWidget(self.run_button)
-        button_layout.addWidget(self.stop_button)
+        # We create two rows of buttons to prevent the window from being too wide.
+        button_layout_1 = QHBoxLayout()
+        button_layout_2 = QHBoxLayout()
 
-        # Add a separator for visual grouping
-        separator = QFrame()
-        separator.setFrameShape(QFrame.Shape.VLine)
-        separator.setFrameShadow(QFrame.Shadow.Plain)
-        separator.setStyleSheet(
-            "border-left: 1px solid #e0e0e0; margin-left: 2px; margin-right: 2px;"
-        )
-        button_layout.addWidget(separator)
-
-        # Add Save and Reload buttons
+        # --- Row 1: INI File Operations ---
         self.save_button = QPushButton("Save INI")
         self.save_button.setToolTip(
             "Save the current configuration values (Ctrl+S)."
         )
         self.save_button.clicked.connect(self.save_config)
         self.save_button.setEnabled(False)  # Enabled when dirty
+        button_layout_1.addWidget(self.save_button)
 
         self.reload_button = QPushButton("Reload INI")
         self.reload_button.setToolTip(
@@ -340,9 +323,7 @@ class MainWindow(QMainWindow):
         )
         self.reload_button.clicked.connect(self._reload_current_file)
         self.reload_button.setEnabled(False)  # Enabled when a file is loaded
-
-        button_layout.addWidget(self.save_button)
-        button_layout.addWidget(self.reload_button)
+        button_layout_1.addWidget(self.reload_button)
 
         self.edit_ini_button = QPushButton("Edit INI")
         self.edit_ini_button.setToolTip(
@@ -350,39 +331,50 @@ class MainWindow(QMainWindow):
         )
         self.edit_ini_button.clicked.connect(self._open_ini_in_editor)
         self.edit_ini_button.setEnabled(False)
-        button_layout.addWidget(self.edit_ini_button)
+        button_layout_1.addWidget(self.edit_ini_button)
+        button_layout_1.addStretch()
 
-        # Add another separator
-        separator2 = QFrame()
-        separator2.setFrameShape(QFrame.Shape.VLine)
-        separator2.setFrameShadow(QFrame.Shadow.Plain)
-        separator2.setStyleSheet(
-            "border-left: 1px solid #e0e0e0; margin-left: 2px; margin-right: 2px;"
+        # --- Row 2: Script and Application Operations ---
+        self.run_button = QPushButton("Run")
+        self.run_button.setToolTip(
+            "Execute the script with the current INI settings."
         )
-        button_layout.addWidget(separator2)
+        self.run_button.clicked.connect(self.run_script)
+        button_layout_2.addWidget(self.run_button)
+
+        self.stop_button = QPushButton("Stop")
+        self.stop_button.setToolTip("Terminate the currently running script.")
+        self.stop_button.clicked.connect(self.stop_script)
+        self.stop_button.setEnabled(False)
+        button_layout_2.addWidget(self.stop_button)
+
+        # Add a separator for visual grouping
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.VLine)
+        separator.setFrameShadow(QFrame.Shadow.Plain)
+        button_layout_2.addWidget(separator)
 
         self.clear_button = QPushButton("Clear Output")
         self.clear_button.setToolTip(
             "Clear all text from the output window (Ctrl+L)."
         )
         self.clear_button.clicked.connect(self.clear_output)
-        button_layout.addWidget(self.clear_button)
+        button_layout_2.addWidget(self.clear_button)
+        button_layout_2.addStretch()
 
-        button_layout.addStretch()
-
-        # Add Settings button
         self.settings_button = QPushButton("Settings")
         self.settings_button.setToolTip("Open application settings.")
         self.settings_button.clicked.connect(self.open_settings_dialog)
-        button_layout.addWidget(self.settings_button)
+        button_layout_2.addWidget(self.settings_button)
 
         if self.multi_tab_enabled:
             self.new_tab_button = QPushButton("New Output Tab")
             self.new_tab_button.setToolTip("Open a new tab to run a script in.")
             self.new_tab_button.clicked.connect(self.create_new_tab)
-            button_layout.addWidget(self.new_tab_button)
+            button_layout_2.addWidget(self.new_tab_button)
 
-        self.main_layout.addLayout(button_layout)
+        self.main_layout.addLayout(button_layout_1)
+        self.main_layout.addLayout(button_layout_2)
 
         # --- Tabbed Output Area ---
         self.tab_widget = QTabWidget()
@@ -571,7 +563,7 @@ class MainWindow(QMainWindow):
         if self.theme == "dark":
             palette = create_dark_palette()
             self.banner_frame.setStyleSheet(
-                "QFrame { background-color: #7D7D7D; border-radius: 5px; }"
+                "QFrame { background-color: #c1c1c1; border-radius: 5px; }"
             )
         elif self.theme == "light":
             palette = create_light_palette()
@@ -1043,6 +1035,7 @@ class MainWindow(QMainWindow):
         logo_label.setToolTip("Guini - GUI for INI")
         logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.banner_frame.layout().addWidget(logo_label)
+        self.banner_frame.setMaximumWidth(600)  # Set a max width for the banner
 
         # Add the banner frame to the main config layout, spanning all columns
         self.config_layout.addWidget(
@@ -1072,6 +1065,12 @@ class MainWindow(QMainWindow):
             self.config_layout.addWidget(
                 editor, current_row, 1, 1, num_columns * 2 - 1
             )
+            # The script_file_name widget should not span multiple columns,
+            # as its default size can force an undesirably large minimum window width.
+            # We set its column span to 1.
+            column_span = 1
+            self.config_layout.addWidget(editor, current_row, 1, 1, column_span)
+
             self.editors[("Command", key)] = editor
             current_row += 1
         return current_row
