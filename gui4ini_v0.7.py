@@ -115,6 +115,8 @@ class SearchWidget(QWidget):
         self.target_widget: QTextEdit | None = None
 
         layout = QHBoxLayout(self)
+        # Add spacing to prevent widgets from being too cramped
+        layout.setSpacing(10)
         layout.setContentsMargins(5, 5, 5, 5)
 
         self.search_input = QLineEdit()
@@ -128,6 +130,9 @@ class SearchWidget(QWidget):
 
         self.case_checkbox = QCheckBox("Case-sensitive")
 
+        self.match_label = QLabel("")  # Label to show "1/5"
+        self.match_label.setMinimumWidth(50)  # Reserve some space
+
         close_button = QPushButton("✕")
         close_button.setToolTip("Close search bar")
         close_button.setFixedSize(24, 24)
@@ -138,6 +143,7 @@ class SearchWidget(QWidget):
         layout.addWidget(self.next_button)
         layout.addWidget(self.prev_button)
         layout.addWidget(self.case_checkbox)
+        layout.addWidget(self.match_label)
         layout.addStretch()
         layout.addWidget(close_button)
 
@@ -145,24 +151,49 @@ class SearchWidget(QWidget):
         """Sets the QTextEdit that this widget will search in."""
         self.target_widget = widget
 
+    def _count_matches(self, text: str, flags: QTextDocument.FindFlag) -> int:
+        """Counts all occurrences of the text in the target widget."""
+        if not self.target_widget or not text:
+            return 0
+
+        count = 0
+        doc = self.target_widget.document()
+        cursor = QTextCursor(doc)
+        while True:
+            cursor = doc.find(text, cursor, flags)
+            if cursor.isNull():
+                break
+            count += 1
+        return count
+
     def find(self, backwards: bool = False):
         """Finds the next or previous occurrence of the search text."""
         if not self.target_widget:
             return
 
         text = self.search_input.text()
+        self.match_label.setText("")  # Clear previous results
         if not text:
             return
 
         flags = QTextDocument.FindFlag()
         if self.case_checkbox.isChecked():
             flags |= QTextDocument.FindFlag.FindCaseSensitively
+
+        total_matches = self._count_matches(text, flags)
+        if total_matches == 0:
+            self.match_label.setText("0/0")
+            self.search_input.setStyleSheet("background-color: #ffcccc;")
+            QTimer.singleShot(500, lambda: self.search_input.setStyleSheet(""))
+            return
+
+        self.search_input.setStyleSheet("")  # Clear any previous error style
+
         if backwards:
             flags |= QTextDocument.FindFlag.FindBackward
 
         found = self.target_widget.find(text, flags)
 
-        # If not found, wrap around and search from the beginning/end
         if not found:
             cursor = self.target_widget.textCursor()
             if backwards:
@@ -170,21 +201,27 @@ class SearchWidget(QWidget):
             else:
                 cursor.movePosition(QTextCursor.MoveOperation.Start)
             self.target_widget.setTextCursor(cursor)
-
-            # Try finding again from the new cursor position
             found = self.target_widget.find(text, flags)
+            QApplication.activeWindow().statusBar().showMessage(
+                "Search wrapped around.", 2000
+            )
 
-            if found:
-                # Let the user know the search has wrapped
-                QApplication.activeWindow().statusBar().showMessage(
-                    "Search wrapped around.", 2000
-                )
-            else:
-                # Flash the input red to indicate no match even after wrapping
-                self.search_input.setStyleSheet("background-color: #ffcccc;")
-                QTimer.singleShot(
-                    500, lambda: self.search_input.setStyleSheet("")
-                )
+        # To get the current match index, we count occurrences before the current cursor
+        temp_cursor = QTextCursor(self.target_widget.textCursor())
+        temp_cursor.setPosition(0)
+        current_match_index = 1
+        while temp_cursor.anchor() < self.target_widget.textCursor().anchor():
+            temp_cursor = self.target_widget.document().find(
+                text, temp_cursor, flags
+            )
+            if (
+                not temp_cursor.isNull()
+                and temp_cursor.anchor()
+                < self.target_widget.textCursor().anchor()
+            ):
+                current_match_index += 1
+
+        self.match_label.setText(f"{current_match_index}/{total_matches}")
 
     def find_next(self):
         self.find(backwards=False)
