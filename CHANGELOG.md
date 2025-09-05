@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### To Be Added
 * [ ] `pytest` integration and GitHub Actions for CI.
 * [ ] Installation using `pip`.
-* [ ] Support for recognizing lists of numbers and files as argument types.
+* [x] Support for recognizing lists of numbers and files as argument types.
 * [ ] UI controls to add, remove, or edit keys directly, updating the INI file.
 * [x] Open `.ini` file in a text editor.
 * [ ] Compatible to Linux and iOS(?)
@@ -37,6 +37,7 @@ This version introduced a major UI overhaul and significant feature enhancements
 - **Reload INI**: Added a "Reload" action (`File -> Reload`) to refresh the UI from the current INI file.
 - **Argument Tooltips**: Type hints in the `[Labels]` section now generate helpful tooltips on the input fields.
 - **Dynamic Argument Columns**: Users can now configure the number of columns for the arguments section via Settings.
+-  **Dark Mode**.
 
 ### Changed
 
